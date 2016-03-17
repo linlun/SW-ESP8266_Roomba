@@ -16,8 +16,31 @@ HttpServer server;
 
 BssList networks;
 String network, password;
-
+String mqtt_client;
 rBootHttpUpdate* otaUpdater = 0;
+
+// ... and/or MQTT username and password
+#ifndef MQTT_USERNAME
+	#define MQTT_USERNAME "linus"
+	#define MQTT_PWD "linusPass"
+#endif
+
+// ... and/or MQTT host and port
+#ifndef MQTT_HOST
+	//#define MQTT_HOST "test.mosquitto.org"
+	#define MQTT_HOST "192.168.1.66"
+	#define MQTT_PORT 1883
+#endif
+
+// Forward declarations
+void startMqttClient();
+void onMessageReceived(String topic, String message);
+
+Timer procTimer;
+
+// MQTT client
+// For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
+MqttClient mqtt(MQTT_HOST, MQTT_PORT, onMessageReceived);
 
 void OtaUpdate_CallBack(bool result) {
 	
@@ -102,6 +125,25 @@ void ShowInfo() {
     //Serial.printf("SPI Flash Size: %d\r\n", (1 << ((spi_flash_get_id() >> 16) & 0xff)));
 }
 
+void SetRelayOutput(uint8 val)
+{
+	digitalWrite(12,val);
+	if (mqtt.getConnectionState() == eTCS_Connected)
+	{
+		Serial.println("Let's publish message now!");
+		mqtt.publish(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Relay/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
+	}
+}
+
+void SetLedOutput(uint8 val)
+{
+	digitalWrite(13,!val);
+	if (mqtt.getConnectionState() == eTCS_Connected)
+	{
+		Serial.println("Let's publish message now!");
+		mqtt.publish(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
+	}
+}
 void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCharsCount) {
 	
 
@@ -127,13 +169,13 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 		} else if (!strcmp(str, "restart")) {
 			System.restart();
 		} else if (!strcmp(str, "on")) {
-			digitalWrite(12,HIGH);
+			SetRelayOutput(HIGH);
 		} else if (!strcmp(str, "off")) {
-			digitalWrite(12,LOW);
+			SetRelayOutput(LOW);
 		} else if (!strcmp(str, "lon")) {
-			digitalWrite(13,HIGH);
+			SetLedOutput(HIGH);
 		} else if (!strcmp(str, "loff")) {
-			digitalWrite(13,LOW);
+			SetLedOutput(LOW);
 		} else if (!strcmp(str, "ls")) {
 			Vector<String> files = fileList();
 			Serial.printf("filecount %d\r\n", files.count());
@@ -175,28 +217,6 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 	}
 }
 
-// ... and/or MQTT username and password
-#ifndef MQTT_USERNAME
-	#define MQTT_USERNAME ""
-	#define MQTT_PWD ""
-#endif
-
-// ... and/or MQTT host and port
-#ifndef MQTT_HOST
-	#define MQTT_HOST "test.mosquitto.org"
-	#define MQTT_PORT 1883
-#endif
-
-// Forward declarations
-void startMqttClient();
-void onMessageReceived(String topic, String message);
-
-Timer procTimer;
-
-// MQTT client
-// For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
-MqttClient mqtt(MQTT_HOST, MQTT_PORT, onMessageReceived);
-
 // Check for MQTT Disconnection
 void checkMQTTDisconnect(TcpClient& client, bool flag){
 
@@ -223,22 +243,52 @@ void publishMessage()
 // Callback for messages, arrived from MQTT server
 void onMessageReceived(String topic, String message)
 {
+	if (topic.equals(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Set"))
+	{
+		if (message.equals("ON"))
+		{
+			SetLedOutput(HIGH);
+		}
+		else
+		{
+			SetLedOutput(LOW);
+		}
+	}
+	if (topic.equals(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Switch/Set"))
+	{
+		if (message.equals("ON"))
+		{
+			SetRelayOutput(HIGH);
+		}
+		else
+		{
+			SetRelayOutput(LOW);
+		}
+	}
 	Serial.print(topic);
 	Serial.print(":\r\n\t"); // Pretify alignment for printing
 	Serial.println(message);
 }
 
 // Run MQTT client
+
 void startMqttClient()
 {
+	/*if (mqtt == null)
+	{
+		mqtt = new MqttClient(MQTT_HOST, MQTT_PORT, onMessageReceived);
+	}
+	*/
 	procTimer.stop();
 	if(!mqtt.setWill("last/will","The connection from this device is lost:(", 1, true)) {
 		debugf("Unable to set the last will and testament. Most probably there is not enough memory on the device.");
 	}
-	mqtt.connect("esp8266", MQTT_USERNAME, MQTT_PWD);
+	mqtt_client = "esp8266_" + WifiStation.getMAC();
+	mqtt.connect(mqtt_client, MQTT_USERNAME, MQTT_PWD);
 	// Assign a disconnect callback function
 	mqtt.setCompleteDelegate(checkMQTTDisconnect);
-	mqtt.subscribe("main/frameworks/sming");
+	mqtt.subscribe(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Set");
+	mqtt.subscribe(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Switch/Set");
 }
 
 // Will be called when WiFi station was connected to AP
@@ -247,7 +297,7 @@ void connectOk()
 	Serial.println("I'm CONNECTED");
 
 	// Run MQTT client
-	//startMqttClient();
+	startMqttClient();
 
 	// Start publishing loop
 	//procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
@@ -301,6 +351,34 @@ void onIpConfig(HttpRequest &request, HttpResponse &response)
 		vars["netmask"] = "255.255.255.0";
 		vars["gateway"] = "192.168.1.1";
 	}
+
+	response.sendTemplate(tmpl); // will be automatically deleted
+}
+void onMqttConfig(HttpRequest &request, HttpResponse &response)
+{
+	if (request.getRequestMethod() == RequestMethod::POST)
+	{
+		AppSettings.mqtt_password = request.getPostParameter("password");
+		AppSettings.mqtt_user = request.getPostParameter("user");
+		AppSettings.mqtt_server = request.getPostParameter("adr");
+		AppSettings.mqtt_period = request.getPostParameter("period").toInt();
+		AppSettings.mqtt_port = request.getPostParameter("port").toInt();
+		AppSettings.mqtt_ledName = request.getPostParameter("ledName");
+		AppSettings.mqtt_relayName = request.getPostParameter("relayName");
+		//debugf("Updating MQTT settings: %d", AppSettings.ip.isNull());
+		AppSettings.save();
+	}
+
+	TemplateFileStream *tmpl = new TemplateFileStream("mqttsettings.html");
+	auto &vars = tmpl->variables();
+
+	vars["user"] = AppSettings.mqtt_user;
+	vars["password"] = AppSettings.mqtt_password;
+	vars["period"] = AppSettings.mqtt_period;
+	vars["port"] = AppSettings.mqtt_port;
+	vars["adr"] = AppSettings.mqtt_server;
+	vars["ledName"] = AppSettings.mqtt_ledName;
+	vars["relayName"] = AppSettings.mqtt_relayName;
 
 	response.sendTemplate(tmpl); // will be automatically deleted
 }
@@ -410,6 +488,7 @@ void startWebServer()
 	server.listen(80);
 	server.addPath("/", onIndex);
 	server.addPath("/ipconfig", onIpConfig);
+	server.addPath("/mqttconfig", onMqttConfig);
 	server.addPath("/ajax/get-networks", onAjaxNetworkList);
 	server.addPath("/ajax/connect", onAjaxConnect);
 	server.setDefaultHandler(onFile);

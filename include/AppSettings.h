@@ -23,6 +23,14 @@ struct ApplicationSettingsStorage
 	IPAddress netmask;
 	IPAddress gateway;
 
+	String mqtt_server = "192.168.1.66";
+	String mqtt_user = "user";
+	String mqtt_password = "password";
+	uint32 mqtt_period = 1800;
+	uint32 mqtt_port = 1883;
+
+	String mqtt_relayName = "Fonsterlampa";
+	String mqtt_ledName = "IndicatorLED";
 	void load()
 	{
 		DynamicJsonBuffer jsonBuffer;
@@ -42,6 +50,16 @@ struct ApplicationSettingsStorage
 			ip = network["ip"].asString();
 			netmask = network["netmask"].asString();
 			gateway = network["gateway"].asString();
+
+			JsonObject& mqtt = root["mqtt"];
+			mqtt_user = mqtt["user"].asString();
+			mqtt_password = mqtt["password"].asString();
+			mqtt_server = mqtt["server"].asString();
+			mqtt_port = mqtt["port"];
+			mqtt_period = mqtt["period"];
+			mqtt_relayName = mqtt["relayName"].asString();
+			mqtt_ledName = mqtt["ledName"].asString();
+
 
 			delete[] jsonString;
 		}
@@ -63,6 +81,18 @@ struct ApplicationSettingsStorage
 		network["ip"] = ip.toString();
 		network["netmask"] = netmask.toString();
 		network["gateway"] = gateway.toString();
+
+
+		JsonObject& mqtt = jsonBuffer.createObject();
+		root["mqtt"] = mqtt;
+		mqtt["user"] = mqtt_user.c_str();
+		mqtt["password"] = mqtt_password.c_str();
+		mqtt["server"] = mqtt_server.c_str();
+		mqtt["port"] = mqtt_port;
+		mqtt["period"] = mqtt_period;
+
+		mqtt["relayName"] = mqtt_relayName.c_str();
+		mqtt["ledName"] = mqtt_ledName.c_str();
 
 		//TODO: add direct file stream writing
 		String rootString;
