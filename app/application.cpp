@@ -1,10 +1,6 @@
 #include <user_config.h>
 #include <SmingCore/SmingCore.h>
 #include <AppSettings.h>
-// download urls, set appropriately
-#define ROM_0_URL  "http://hok.famlundin.org:80/rom0.bin"
-#define ROM_1_URL  "http://hok.famlundin.org:80/rom1.bin"
-#define SPIFFS_URL "http://hok.famlundin.org:80/spiff_rom.bin"
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
@@ -78,22 +74,22 @@ void OtaUpdate() {
 
 #ifndef RBOOT_TWO_ROMS
 	// flash rom to position indicated in the rBoot config rom table
-	otaUpdater->addItem(bootconf.roms[slot], ROM_0_URL);
+	otaUpdater->addItem(bootconf.roms[slot], AppSettings.ota_ROM_0);
 #else
 	// flash appropriate rom
 	if (slot == 0) {
-		otaUpdater->addItem(bootconf.roms[slot], ROM_0_URL);
+		otaUpdater->addItem(bootconf.roms[slot],AppSettings.ota_ROM_0);
 	} else {
-		otaUpdater->addItem(bootconf.roms[slot], ROM_1_URL);
+		otaUpdater->addItem(bootconf.roms[slot], AppSettings.ota_ROM_1);
 	}
 #endif
 	
 #ifndef DISABLE_SPIFFS
 	// use user supplied values (defaults for 4mb flash in makefile)
 	if (slot == 0) {
-		otaUpdater->addItem(RBOOT_SPIFFS_0, SPIFFS_URL);
+		otaUpdater->addItem(RBOOT_SPIFFS_0, AppSettings.ota_SPIFFS);
 	} else {
-		otaUpdater->addItem(RBOOT_SPIFFS_1, SPIFFS_URL);
+		otaUpdater->addItem(RBOOT_SPIFFS_1, AppSettings.ota_SPIFFS);
 	}
 #endif
 
@@ -383,6 +379,27 @@ void onMqttConfig(HttpRequest &request, HttpResponse &response)
 	response.sendTemplate(tmpl); // will be automatically deleted
 }
 
+void onOtaConfig(HttpRequest &request, HttpResponse &response)
+{
+	if (request.getRequestMethod() == RequestMethod::POST)
+	{
+		AppSettings.ota_ROM_0 = request.getPostParameter("rom0");
+		AppSettings.ota_ROM_1 = request.getPostParameter("rom1");
+		AppSettings.ota_SPIFFS = request.getPostParameter("spiffs");
+		//debugf("Updating MQTT settings: %d", AppSettings.ip.isNull());
+		AppSettings.save();
+	}
+
+	TemplateFileStream *tmpl = new TemplateFileStream("otasettings.html");
+	auto &vars = tmpl->variables();
+
+	vars["rom0"] = AppSettings.ota_ROM_0;
+	vars["rom1"] = AppSettings.ota_ROM_1;
+	vars["spiffs"] = AppSettings.ota_SPIFFS;
+
+	response.sendTemplate(tmpl); // will be automatically deleted
+}
+
 void onFile(HttpRequest &request, HttpResponse &response)
 {
 	String file = request.getPath();
@@ -428,7 +445,10 @@ void onAjaxNetworkList(HttpRequest &request, HttpResponse &response)
 	response.setAllowCrossDomainOrigin("*");
 	response.sendJsonObject(stream);
 }
-
+void onAjaxRunOta(HttpRequest &request, HttpResponse &response)
+{
+	OtaUpdate();
+}
 void makeConnection()
 {
 	WifiStation.enable(true);
@@ -489,7 +509,9 @@ void startWebServer()
 	server.addPath("/", onIndex);
 	server.addPath("/ipconfig", onIpConfig);
 	server.addPath("/mqttconfig", onMqttConfig);
+	server.addPath("/ota", onOtaConfig);
 	server.addPath("/ajax/get-networks", onAjaxNetworkList);
+	server.addPath("/ajax/run-ota", onAjaxRunOta);
 	server.addPath("/ajax/connect", onAjaxConnect);
 	server.setDefaultHandler(onFile);
 }

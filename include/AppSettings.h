@@ -31,6 +31,11 @@ struct ApplicationSettingsStorage
 
 	String mqtt_relayName = "Fonsterlampa";
 	String mqtt_ledName = "IndicatorLED";
+
+	String ota_ROM_0 = "http://hok.famlundin.org:80/rom0.bin";
+	String ota_ROM_1 = "http://hok.famlundin.org:80/rom1.bin";
+	String ota_SPIFFS = "http://hok.famlundin.org:80/spiff_rom.bin";
+
 	void load()
 	{
 		DynamicJsonBuffer jsonBuffer;
@@ -60,6 +65,10 @@ struct ApplicationSettingsStorage
 			mqtt_relayName = mqtt["relayName"].asString();
 			mqtt_ledName = mqtt["ledName"].asString();
 
+			JsonObject& ota = root["ota"];
+			ota_ROM_0 = ota["rom0"].asString();
+			ota_ROM_0 = ota["rom1"].asString();
+			ota_SPIFFS = ota["spiffs"].asString();
 
 			delete[] jsonString;
 		}
@@ -93,6 +102,12 @@ struct ApplicationSettingsStorage
 
 		mqtt["relayName"] = mqtt_relayName.c_str();
 		mqtt["ledName"] = mqtt_ledName.c_str();
+
+		JsonObject& ota = jsonBuffer.createObject();
+		root["ota"] = ota;
+		ota["rom0"] = ota_ROM_0.c_str();
+		ota["rom1"] = ota_ROM_1.c_str();
+		ota["spiffs"] = ota_SPIFFS.c_str();
 
 		//TODO: add direct file stream writing
 		String rootString;
