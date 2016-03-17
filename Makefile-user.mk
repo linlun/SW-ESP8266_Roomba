@@ -54,13 +54,13 @@ RBOOT_LD_0      ?= rom0.ld
 RBOOT_ROM_1     ?= rom1
 RBOOT_LD_1      ?= rom1.ld
 ## size of the spiffs to create
-SPIFF_SIZE      ?= 0x10000
+SPIFF_SIZE      ?= 0x28000
 ## option to completely disable spiffs
 #DISABLE_SPIFFS  = 1
 ## flash offsets for spiffs, set if using two rom mode or not on a 4mb flash
 ## (spiffs location defaults to the mb after the rom slot on 4mb flash)
-RBOOT_SPIFFS_0  ?= 0x070000
-RBOOT_SPIFFS_1  ?= 0x0F0000
+RBOOT_SPIFFS_0  ?= 0x058000
+RBOOT_SPIFFS_1  ?= 0x0D8000
 ## esptool2 path
 #ESPTOOL2        ?= esptool2
 

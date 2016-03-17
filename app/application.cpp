@@ -1,6 +1,6 @@
 #include <user_config.h>
 #include <SmingCore/SmingCore.h>
-
+#include <AppSettings.h>
 // download urls, set appropriately
 #define ROM_0_URL  "http://hok.famlundin.org:80/rom0.bin"
 #define ROM_1_URL  "http://hok.famlundin.org:80/rom1.bin"
@@ -11,6 +11,11 @@
 	#define WIFI_SSID "blablabla" // Put you SSID and Password here
 	#define WIFI_PWD "blablabla"
 #endif
+
+HttpServer server;
+
+BssList networks;
+String network, password;
 
 rBootHttpUpdate* otaUpdater = 0;
 
@@ -170,6 +175,262 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 	}
 }
 
+// ... and/or MQTT username and password
+#ifndef MQTT_USERNAME
+	#define MQTT_USERNAME ""
+	#define MQTT_PWD ""
+#endif
+
+// ... and/or MQTT host and port
+#ifndef MQTT_HOST
+	#define MQTT_HOST "test.mosquitto.org"
+	#define MQTT_PORT 1883
+#endif
+
+// Forward declarations
+void startMqttClient();
+void onMessageReceived(String topic, String message);
+
+Timer procTimer;
+
+// MQTT client
+// For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
+MqttClient mqtt(MQTT_HOST, MQTT_PORT, onMessageReceived);
+
+// Check for MQTT Disconnection
+void checkMQTTDisconnect(TcpClient& client, bool flag){
+
+	// Called whenever MQTT connection is failed.
+	if (flag == true)
+		Serial.println("MQTT Broker Disconnected!!");
+	else
+		Serial.println("MQTT Broker Unreachable!!");
+
+	// Restart connection attempt after few seconds
+	procTimer.initializeMs(2 * 1000, startMqttClient).start(); // every 2 seconds
+}
+
+// Publish our message
+void publishMessage()
+{
+	if (mqtt.getConnectionState() != eTCS_Connected)
+		startMqttClient(); // Auto reconnect
+
+	Serial.println("Let's publish message now!");
+	mqtt.publish("main/frameworks/sming", "Hello friends, from Internet of things :)"); // or publishWithQoS
+}
+
+// Callback for messages, arrived from MQTT server
+void onMessageReceived(String topic, String message)
+{
+	Serial.print(topic);
+	Serial.print(":\r\n\t"); // Pretify alignment for printing
+	Serial.println(message);
+}
+
+// Run MQTT client
+void startMqttClient()
+{
+	procTimer.stop();
+	if(!mqtt.setWill("last/will","The connection from this device is lost:(", 1, true)) {
+		debugf("Unable to set the last will and testament. Most probably there is not enough memory on the device.");
+	}
+	mqtt.connect("esp8266", MQTT_USERNAME, MQTT_PWD);
+	// Assign a disconnect callback function
+	mqtt.setCompleteDelegate(checkMQTTDisconnect);
+	mqtt.subscribe("main/frameworks/sming");
+}
+
+// Will be called when WiFi station was connected to AP
+void connectOk()
+{
+	Serial.println("I'm CONNECTED");
+
+	// Run MQTT client
+	//startMqttClient();
+
+	// Start publishing loop
+	//procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
+}
+
+// Will be called when WiFi station timeout was reached
+void connectFail()
+{
+	Serial.println("I'm NOT CONNECTED. Need help :(");
+
+	// .. some you code for device configuration ..
+}
+
+Timer connectionTimer;
+
+void onIndex(HttpRequest &request, HttpResponse &response)
+{
+	TemplateFileStream *tmpl = new TemplateFileStream("index.html");
+	auto &vars = tmpl->variables();
+	response.sendTemplate(tmpl); // will be automatically deleted
+}
+
+void onIpConfig(HttpRequest &request, HttpResponse &response)
+{
+	if (request.getRequestMethod() == RequestMethod::POST)
+	{
+		AppSettings.dhcp = request.getPostParameter("dhcp") == "1";
+		AppSettings.ip = request.getPostParameter("ip");
+		AppSettings.netmask = request.getPostParameter("netmask");
+		AppSettings.gateway = request.getPostParameter("gateway");
+		debugf("Updating IP settings: %d", AppSettings.ip.isNull());
+		AppSettings.save();
+	}
+
+	TemplateFileStream *tmpl = new TemplateFileStream("settings.html");
+	auto &vars = tmpl->variables();
+
+	bool dhcp = WifiStation.isEnabledDHCP();
+	vars["dhcpon"] = dhcp ? "checked='checked'" : "";
+	vars["dhcpoff"] = !dhcp ? "checked='checked'" : "";
+
+	if (!WifiStation.getIP().isNull())
+	{
+		vars["ip"] = WifiStation.getIP().toString();
+		vars["netmask"] = WifiStation.getNetworkMask().toString();
+		vars["gateway"] = WifiStation.getNetworkGateway().toString();
+	}
+	else
+	{
+		vars["ip"] = "192.168.1.77";
+		vars["netmask"] = "255.255.255.0";
+		vars["gateway"] = "192.168.1.1";
+	}
+
+	response.sendTemplate(tmpl); // will be automatically deleted
+}
+
+void onFile(HttpRequest &request, HttpResponse &response)
+{
+	String file = request.getPath();
+	if (file[0] == '/')
+		file = file.substring(1);
+
+	if (file[0] == '.')
+		response.forbidden();
+	else
+	{
+		response.setCache(86400, true); // It's important to use cache for better performance.
+		response.sendFile(file);
+	}
+}
+
+void onAjaxNetworkList(HttpRequest &request, HttpResponse &response)
+{
+	JsonObjectStream* stream = new JsonObjectStream();
+	JsonObject& json = stream->getRoot();
+
+	json["status"] = (bool)true;
+
+	bool connected = WifiStation.isConnected();
+	json["connected"] = connected;
+	if (connected)
+	{
+		// Copy full string to JSON buffer memory
+		json["network"]= WifiStation.getSSID();
+	}
+
+	JsonArray& netlist = json.createNestedArray("available");
+	for (int i = 0; i < networks.count(); i++)
+	{
+		if (networks[i].hidden) continue;
+		JsonObject &item = netlist.createNestedObject();
+		item["id"] = (int)networks[i].getHashId();
+		// Copy full string to JSON buffer memory
+		item["title"] = networks[i].ssid;
+		item["signal"] = networks[i].rssi;
+		item["encryption"] = networks[i].getAuthorizationMethodName();
+	}
+
+	response.setAllowCrossDomainOrigin("*");
+	response.sendJsonObject(stream);
+}
+
+void makeConnection()
+{
+	WifiStation.enable(true);
+	WifiStation.config(network, password);
+
+	AppSettings.ssid = network;
+	AppSettings.password = password;
+	AppSettings.save();
+
+	network = ""; // task completed
+}
+
+void onAjaxConnect(HttpRequest &request, HttpResponse &response)
+{
+	JsonObjectStream* stream = new JsonObjectStream();
+	JsonObject& json = stream->getRoot();
+
+	String curNet = request.getPostParameter("network");
+	String curPass = request.getPostParameter("password");
+
+	bool updating = curNet.length() > 0 && (WifiStation.getSSID() != curNet || WifiStation.getPassword() != curPass);
+	bool connectingNow = WifiStation.getConnectionStatus() == eSCS_Connecting || network.length() > 0;
+
+	if (updating && connectingNow)
+	{
+		debugf("wrong action: %s %s, (updating: %d, connectingNow: %d)", network.c_str(), password.c_str(), updating, connectingNow);
+		json["status"] = (bool)false;
+		json["connected"] = (bool)false;
+	}
+	else
+	{
+		json["status"] = (bool)true;
+		if (updating)
+		{
+			network = curNet;
+			password = curPass;
+			debugf("CONNECT TO: %s %s", network.c_str(), password.c_str());
+			json["connected"] = false;
+			connectionTimer.initializeMs(1200, makeConnection).startOnce();
+		}
+		else
+		{
+			json["connected"] = WifiStation.isConnected();
+			debugf("Network already selected. Current status: %s", WifiStation.getConnectionStatusName());
+		}
+	}
+
+	if (!updating && !connectingNow && WifiStation.isConnectionFailed())
+		json["error"] = WifiStation.getConnectionStatusName();
+
+	response.setAllowCrossDomainOrigin("*");
+	response.sendJsonObject(stream);
+}
+
+void startWebServer()
+{
+	server.listen(80);
+	server.addPath("/", onIndex);
+	server.addPath("/ipconfig", onIpConfig);
+	server.addPath("/ajax/get-networks", onAjaxNetworkList);
+	server.addPath("/ajax/connect", onAjaxConnect);
+	server.setDefaultHandler(onFile);
+}
+
+// Will be called when system initialization was completed
+void startServers()
+{
+	startWebServer();
+}
+
+void networkScanCompleted(bool succeeded, BssList list)
+{
+	if (succeeded)
+	{
+		for (int i = 0; i < list.count(); i++)
+			if (!list[i].hidden && list[i].ssid.length() > 0)
+				networks.add(list[i]);
+	}
+	networks.sort([](const BssInfo& a, const BssInfo& b){ return b.rssi - a.rssi; } );
+}
 void init() {
 	
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
@@ -199,7 +460,29 @@ void init() {
 #else
 	debugf("spiffs disabled");
 #endif
+
+	AppSettings.load();
+
 	WifiAccessPoint.enable(false);
+	// connect to wifi
+	WifiStation.config(WIFI_SSID, WIFI_PWD);
+	WifiStation.enable(true);
+	
+	if (AppSettings.exist())
+	{
+		WifiStation.config(AppSettings.ssid, AppSettings.password);
+		if (!AppSettings.dhcp && !AppSettings.ip.isNull())
+			WifiStation.setIP(AppSettings.ip, AppSettings.netmask, AppSettings.gateway);
+	}
+
+	WifiStation.startScan(networkScanCompleted);
+
+	// Start AP for configuration
+	WifiAccessPoint.enable(true);
+	WifiAccessPoint.config("Sming Configuration", "", AUTH_OPEN);
+
+	// Run WEB server on system ready
+	System.onReady(startServers);
 	
 	Serial.printf("\r\nCurrently running rom %d.\r\n", slot);
 	Serial.println("Type 'help' and press enter for instructions.");
@@ -207,4 +490,6 @@ void init() {
 	pinMode(12, OUTPUT);
 	pinMode(13, OUTPUT);
 	Serial.setCallback(serialCallBack);
+	// Run our method when station was connected to AP (or not connected)
+	WifiStation.waitConnection(connectOk, 20, connectFail); // We recommend 20+ seconds for connection timeout at start
 }
