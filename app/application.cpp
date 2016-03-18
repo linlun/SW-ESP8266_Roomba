@@ -1,7 +1,7 @@
 #include <user_config.h>
 #include <SmingCore/SmingCore.h>
 #include <AppSettings.h>
-
+#include "rfreceiver.h"
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
 	#define WIFI_SSID "blablabla" // Put you SSID and Password here
@@ -14,7 +14,8 @@ BssList networks;
 String network, password;
 String mqtt_client;
 rBootHttpUpdate* otaUpdater = 0;
-
+void rfreceiver_rx_int(void);
+rfreceiver rf(PIN_RF_RX);
 // ... and/or MQTT username and password
 #ifndef MQTT_USERNAME
 	#define MQTT_USERNAME "linus"
@@ -537,6 +538,7 @@ void networkScanCompleted(bool succeeded, BssList list)
 void init() {
 	
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
+	system_update_cpu_freq(SYS_CPU_160MHZ);
 	Serial.systemDebugOutput(true); // Debug output to serial
 	
 	// mount spiffs
@@ -596,4 +598,6 @@ void init() {
 	Serial.setCallback(serialCallBack);
 	// Run our method when station was connected to AP (or not connected)
 	WifiStation.waitConnection(connectOk, 20, connectFail); // We recommend 20+ seconds for connection timeout at start
+	//runRx();
+	rf.start(100);
 }
