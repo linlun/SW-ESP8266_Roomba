@@ -36,7 +36,7 @@ Timer procTimer;
 
 // MQTT client
 // For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
-MqttClient mqtt(MQTT_HOST, MQTT_PORT, onMessageReceived);
+MqttClient *mqtt;
 
 void OtaUpdate_CallBack(bool result) {
 	
@@ -124,20 +124,20 @@ void ShowInfo() {
 void SetRelayOutput(uint8 val)
 {
 	digitalWrite(12,val);
-	if (mqtt.getConnectionState() == eTCS_Connected)
+	if (mqtt->getConnectionState() == eTCS_Connected)
 	{
 		Serial.println("Let's publish message now!");
-		mqtt.publish(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Relay/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
+		mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Relay/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
 	}
 }
 
 void SetLedOutput(uint8 val)
 {
 	digitalWrite(13,!val);
-	if (mqtt.getConnectionState() == eTCS_Connected)
+	if (mqtt->getConnectionState() == eTCS_Connected)
 	{
 		Serial.println("Let's publish message now!");
-		mqtt.publish(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
+		mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
 	}
 }
 void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCharsCount) {
@@ -182,7 +182,9 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 			Vector<String> files = fileList();
 			if (files.count() > 0) {
 				Serial.printf("dumping file %s:\r\n", files[0].c_str());
-				Serial.println(fileGetContent(files[0]));
+				//Serial.println(fileGetContent(files[0]));
+				Serial.println(fileGetContent(".settings.conf"));
+
 			} else {
 				Serial.println("Empty spiffs!");
 			}
@@ -229,11 +231,11 @@ void checkMQTTDisconnect(TcpClient& client, bool flag){
 // Publish our message
 void publishMessage()
 {
-	if (mqtt.getConnectionState() != eTCS_Connected)
+	if (mqtt->getConnectionState() != eTCS_Connected)
 		startMqttClient(); // Auto reconnect
 
 	Serial.println("Let's publish message now!");
-	mqtt.publish("main/frameworks/sming", "Hello friends, from Internet of things :)"); // or publishWithQoS
+	mqtt->publish("main/frameworks/sming", "Hello friends, from Internet of things :)"); // or publishWithQoS
 }
 
 // Callback for messages, arrived from MQTT server
@@ -276,15 +278,15 @@ void startMqttClient()
 	}
 	*/
 	procTimer.stop();
-	if(!mqtt.setWill("last/will","The connection from this device is lost:(", 1, true)) {
+	if(!mqtt->setWill("last/will","The connection from this device is lost:(", 1, true)) {
 		debugf("Unable to set the last will and testament. Most probably there is not enough memory on the device.");
 	}
 	mqtt_client = "esp8266_" + WifiStation.getMAC();
-	mqtt.connect(mqtt_client, MQTT_USERNAME, MQTT_PWD);
+	mqtt->connect(mqtt_client, MQTT_USERNAME, MQTT_PWD);
 	// Assign a disconnect callback function
-	mqtt.setCompleteDelegate(checkMQTTDisconnect);
-	mqtt.subscribe(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Set");
-	mqtt.subscribe(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Switch/Set");
+	mqtt->setCompleteDelegate(checkMQTTDisconnect);
+	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Set");
+	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Switch/Set");
 }
 
 // Will be called when WiFi station was connected to AP
@@ -575,6 +577,7 @@ void init() {
 		if (!AppSettings.dhcp && !AppSettings.ip.isNull())
 			WifiStation.setIP(AppSettings.ip, AppSettings.netmask, AppSettings.gateway);
 	}
+	mqtt = new MqttClient(AppSettings.mqtt_server,AppSettings.mqtt_port, onMessageReceived);
 
 	WifiStation.startScan(networkScanCompleted);
 
