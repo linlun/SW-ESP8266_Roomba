@@ -132,6 +132,28 @@ void rfreceiver::start(int processPeriod)
 
 #define INDEX_DIFF(start, current, max)	(((start) < (current))?((current) - (start)):(((current) + (max)) - (start)))
 
+//Index 1==0b0001 => 0b1000
+//Index 7==0b0111 => 0b1110
+//etc
+static unsigned char lookup[16] = {
+0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
+0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf, };
+
+uint8_t reverse(uint8_t n) {
+   // Reverse the top and bottom nibble then swap them.
+   return (lookup[n&0b1111] << 4) | lookup[n>>4];
+}
+
+// Detailed breakdown of the math
+//  + lookup reverse of bottom nibble
+//  |       + grab bottom nibble
+//  |       |        + move bottom result into top nibble
+//  |       |        |     + combine the bottom and top results
+//  |       |        |     | + lookup reverse of top nibble
+//  |       |        |     | |       + grab top nibble
+//  V       V        V     V V       V
+// (lookup[n&0b1111] << 4) | lookup[n>>4]
+
 void rfreceiver::Process(void)
 {
 	/*
@@ -194,24 +216,51 @@ void rfreceiver::Process(void)
 			uint8 res = parseProtocol(buf, buffers[readBufferPtr].lenght, buffers[readBufferPtr].startPtr, &rfRxChannel_proto,&used_length);
 			if (res == IR_OK && rfRxChannel_proto.protocol != IR_PROTO_UNKNOWN)
 			{
-				//Found data
-				// Send/store response
-				Serial.print("Got data: ");
-				Serial.print(rfRxChannel_proto.protocol);
-				Serial.print(" ");
-				Serial.print((uint8)((rfRxChannel_proto.data>>40)&0xff),16);
-				Serial.print(" ");
-				Serial.print((uint8)((rfRxChannel_proto.data>>32)&0xff),16);
-				Serial.print(" ");
-				Serial.print((uint8)((rfRxChannel_proto.data>>24)&0xff),16);
-				Serial.print(" ");
-				Serial.print((uint8)((rfRxChannel_proto.data>>16)&0xff),16);
-				Serial.print(" ");
-				Serial.print((uint8)((rfRxChannel_proto.data>>8)&0xff),16);
-				Serial.print(" ");
-				Serial.println((uint8)(rfRxChannel_proto.data&0xff),16);
-				Serial.print(" ");
-				Serial.println((unsigned long)rfRxChannel_proto.data);
+				if (rfRxChannel_proto.protocol == IR_PROTOCOL_NEXA2)
+				{
+
+					uint32 id = reverse(rfRxChannel_proto.data&0xff)<<18;
+					id += (reverse((rfRxChannel_proto.data>>8)&0xff)<<10);
+					id += (reverse((rfRxChannel_proto.data>>16)&0xff)<<2);
+					uint8 data = reverse((uint8)((rfRxChannel_proto.data>>24)&0xff));
+					id += (data&0xC0)>>6;
+
+					uint8 channel = (data&0x0c)>>2;
+					uint8 button =  (data&0x03);
+					uint8 status =  (data&0x10)>>4;
+					uint8 group =  (data&0x30)>>5;
+
+					Serial.print("Id: ");
+					Serial.println(id);
+					Serial.print("Grp: ");
+					Serial.println(group);
+					Serial.print("Btn: ");
+					Serial.println(button);
+					Serial.print("Sts: ");
+					Serial.println(status);
+					Serial.print("Chn: ");
+					Serial.println(channel);
+				} else
+				{
+					//Found data
+					// Send/store response
+					Serial.print("Got data: ");
+					Serial.print(rfRxChannel_proto.protocol);
+					Serial.print(" ");
+					Serial.print((uint8)((rfRxChannel_proto.data>>40)&0xff),16);
+					Serial.print(" ");
+					Serial.print((uint8)((rfRxChannel_proto.data>>32)&0xff),16);
+					Serial.print(" ");
+					Serial.print((uint8)((rfRxChannel_proto.data>>24)&0xff),16);
+					Serial.print(" ");
+					Serial.print((uint8)((rfRxChannel_proto.data>>16)&0xff),16);
+					Serial.print(" ");
+					Serial.print((uint8)((rfRxChannel_proto.data>>8)&0xff),16);
+					Serial.print(" ");
+					Serial.println((uint8)(rfRxChannel_proto.data&0xff),16);
+					Serial.print(" ");
+					Serial.println((unsigned long)rfRxChannel_proto.data);
+				}
 				buffers[readBufferPtr].lenght -= used_length;
 				buffers[readBufferPtr].startPtr = INDEX_ADD(buffers[readBufferPtr].startPtr, used_length, MAX_NR_TIMES);
 				OldestBufferItem = buffers[readBufferPtr].startPtr;
@@ -238,6 +287,30 @@ c = CRC, Vet ej hur denna räknas ut.
 				//printf("d %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n", receiverBufferLong[0],receiverBufferLong[1],receiverBufferLong[2],receiverBufferLong[3],receiverBufferLong[4],receiverBufferLong[5],receiverBufferLong[6],receiverBufferLong[7],receiverBufferLong[8],receiverBufferLong[9],receiverBufferLong[10],receiverBufferLong[11],receiverBufferLong[12],receiverBufferLong[13]);
 
 				//TODO: This data packageing shall be done in the the protocol decoding and not here
+				Serial.print("Start:    ");
+				Serial.println(receiverBufferLong[0],16);
+				Serial.print("Id:       ");
+				Serial.println(((uint16)receiverBufferLong[1]<<8) + receiverBufferLong[2],16);
+				Serial.print("Bat:      ");
+				Serial.println(receiverBufferLong[3],16);
+
+				Serial.print("Wind dir: ");
+				Serial.println((receiverBufferLong[4]&0xE0)>>5,16);
+				Serial.print("Temp:     ");
+				Serial.println((float)((sint16)(((uint16)receiverBufferLong[4]<<12) + ((uint16)receiverBufferLong[5]<<4)))/160.0f);
+
+				Serial.print("Humidity: ");
+				Serial.println(receiverBufferLong[6]);
+
+				Serial.print("Wind avg: ");
+				Serial.println((float)(receiverBufferLong[7])*0.8f);
+				Serial.print("Wind max: ");
+				Serial.println((float)(receiverBufferLong[8])*0.8f);
+
+				Serial.print("Rain: ");
+				Serial.println((receiverBufferLong[9]<<16) +(receiverBufferLong[10]<<8) +(receiverBufferLong[11]) );
+
+
 				receiverBufferLong[0] = receiverBufferLong[1] ^ receiverBufferLong[2];
 				receiverBufferLong[1] = (receiverBufferLong[4] & 0x0Fu) + ((receiverBufferLong[4] & 0xE0u)>>1);
 				receiverBufferLong[2] = receiverBufferLong[5];
