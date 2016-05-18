@@ -1,21 +1,21 @@
 #include <user_config.h>
 #include <SmingCore/SmingCore.h>
 #include <AppSettings.h>
-#include "rfreceiver.h"
+#include <roomba.h>
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
 	#define WIFI_SSID "blablabla" // Put you SSID and Password here
 	#define WIFI_PWD "blablabla"
 #endif
 
-HttpServer server;
+static volatile Roomba_Sensor_Data_t	sensordata2;
 
+HttpServer server;
+roomba roomba(PIN_ROOBA_WAKE);
 BssList networks;
 String network, password;
 String mqtt_client;
 rBootHttpUpdate* otaUpdater = 0;
-void rfreceiver_rx_int(void);
-rfreceiver rf(PIN_RF_RX);
 // ... and/or MQTT username and password
 #ifndef MQTT_USERNAME
 	#define MQTT_USERNAME "linus"
@@ -122,28 +122,7 @@ void ShowInfo() {
     //Serial.printf("SPI Flash Size: %d\r\n", (1 << ((spi_flash_get_id() >> 16) & 0xff)));
 }
 
-void SetRelayOutput(uint8 val)
-{
-	digitalWrite(12,val);
-	if (mqtt->getConnectionState() == eTCS_Connected)
-	{
-		Serial.println("Let's publish message now!");
-		mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Relay/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
-	}
-}
-
-void SetLedOutput(uint8 val)
-{
-	digitalWrite(13,!val);
-	if (mqtt->getConnectionState() == eTCS_Connected)
-	{
-		Serial.println("Let's publish message now!");
-		mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Status", (val == 1)?"ON":"OFF",true); // or publishWithQoS
-	}
-}
 void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCharsCount) {
-	
-
 	if (arrivedChar == '\n') {
 		char str[availableCharsCount];
 		for (int i = 0; i < availableCharsCount; i++) {
@@ -165,14 +144,6 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 			Switch();
 		} else if (!strcmp(str, "restart")) {
 			System.restart();
-		} else if (!strcmp(str, "on")) {
-			SetRelayOutput(HIGH);
-		} else if (!strcmp(str, "off")) {
-			SetRelayOutput(LOW);
-		} else if (!strcmp(str, "lon")) {
-			SetLedOutput(HIGH);
-		} else if (!strcmp(str, "loff")) {
-			SetLedOutput(LOW);
 		} else if (!strcmp(str, "ls")) {
 			Vector<String> files = fileList();
 			Serial.printf("filecount %d\r\n", files.count());
@@ -201,15 +172,18 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 			Serial.println("  switch - switch to the other rom and reboot");
 			Serial.println("  ota - perform ota update, switch rom and reboot");
 			Serial.println("  info - show esp8266 info");
+			Serial.println("  sl - Sleep for 5 seconds");
 #ifndef DISABLE_SPIFFS
 			Serial.println("  ls - list files in spiffs");
 			Serial.println("  cat - show first file in spiffs");
 #endif
-			Serial.println("  on - turn on sonoff relay");
-			Serial.println("  off - turn off sonoff relay");
-			Serial.println("  lon - turn on sonoff led");
-			Serial.println("  loff - turn off sonoff led");
 			Serial.println();
+		} else if (!strcmp(str, "sl")) {
+			Serial.println("Going to sleep");
+			delay(500);
+			system_deep_sleep(5000000);
+			delay(500);
+			Serial.println("Wakeing up");
 		} else {
 			Serial.println("unknown command");
 		}
@@ -246,22 +220,22 @@ void onMessageReceived(String topic, String message)
 	{
 		if (message.equals("ON"))
 		{
-			SetLedOutput(HIGH);
+			//SetLedOutput(HIGH);
 		}
 		else
 		{
-			SetLedOutput(LOW);
+			//SetLedOutput(LOW);
 		}
 	}
 	if (topic.equals(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Switch/Set"))
 	{
 		if (message.equals("ON"))
 		{
-			SetRelayOutput(HIGH);
+			//SetRelayOutput(HIGH);
 		}
 		else
 		{
-			SetRelayOutput(LOW);
+			//SetRelayOutput(LOW);
 		}
 	}
 	Serial.print(topic);
@@ -296,7 +270,7 @@ void connectOk()
 	Serial.println("I'm CONNECTED");
 
 	// Run MQTT client
-	startMqttClient();
+	//startMqttClient();
 
 	// Start publishing loop
 	//procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
@@ -536,11 +510,12 @@ void networkScanCompleted(bool succeeded, BssList list)
 	networks.sort([](const BssInfo& a, const BssInfo& b){ return b.rssi - a.rssi; } );
 }
 void init() {
-	
+	system_set_os_print(0);
+	Serial.systemDebugOutput(false); // Debug output to serial
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
 	system_update_cpu_freq(SYS_CPU_160MHZ);
-	Serial.systemDebugOutput(true); // Debug output to serial
 	
+
 	// mount spiffs
 	int slot = rboot_get_current_rom();
 #ifndef DISABLE_SPIFFS
@@ -579,7 +554,7 @@ void init() {
 		if (!AppSettings.dhcp && !AppSettings.ip.isNull())
 			WifiStation.setIP(AppSettings.ip, AppSettings.netmask, AppSettings.gateway);
 	}
-	mqtt = new MqttClient(AppSettings.mqtt_server,AppSettings.mqtt_port, onMessageReceived);
+	//mqtt = new MqttClient(AppSettings.mqtt_server,AppSettings.mqtt_port, onMessageReceived);
 
 	WifiStation.startScan(networkScanCompleted);
 
@@ -593,11 +568,12 @@ void init() {
 	Serial.printf("\r\nCurrently running rom %d.\r\n", slot);
 	Serial.println("Type 'help' and press enter for instructions.");
 	Serial.println();
-	pinMode(12, OUTPUT);
-	pinMode(13, OUTPUT);
+	//pinMode(12, OUTPUT);
+	//pinMode(13, OUTPUT);
 	Serial.setCallback(serialCallBack);
 	// Run our method when station was connected to AP (or not connected)
 	WifiStation.waitConnection(connectOk, 20, connectFail); // We recommend 20+ seconds for connection timeout at start
 	//runRx();
-	rf.start(100);
+
+
 }
