@@ -1,0 +1,202 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="../../favicon.ico">
+
+    <title>Roomba Scheduling Settings</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="bootstrap.css" rel="stylesheet">
+    <script src="jquery.js"></script>
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+    <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+    <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+
+<div class="container">
+    <div class="header">
+        <nav>
+            <ul class="nav nav-pills pull-right">
+                <li role="presentation"><a href="/">Networks</a></li>
+                <li role="presentation"><a href="/ipconfig">Settings</a></li>
+                <li role="presentation"><a href="/mqttconfig">MQTT</a></li>
+                <li role="presentation"><a href="/ota">Firmware Update</a></li>
+                <li role="presentation" class="active"><a href="/Roomba_Scheduling">Roomba_Scheduling</a></li>
+            </ul>
+        </nav>
+        <h3 class="text-muted">Sming Based</h3>
+    </div>
+
+    <div class="jumbotron">
+        <h1>Roomba Scheduling Settings</h1>
+        <p class="lead">Schedule autmatic start of roomba
+        </p>
+    </div>
+    <div class="row">
+        <div class="col-lg-6 col-md-offset-3">
+		<h2>Settings</h2>
+            <form method="post" action="">
+                <fieldset>
+                    <legend>Monday</legend>
+                    <div class="col-md-offset-2">
+                        <div class="form-group">
+                            <label>Enable: </label>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="radio" value="1" name="monday" {mondayon}> On
+                                </label>
+                                <label>
+                                    <input type="radio" value="0" name="monday" {mondayoff}> Off
+                                </label>
+                            </div>
+                            <label>Hour: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="mondayHour" value="{mondayHour}">
+                            <label>Minute: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="mondayMinute" value="{mondayMinute}">
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Tuesday</legend>
+                    <div class="col-md-offset-2">
+                        <div class="form-group">
+                            <label>Enable: </label>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="radio" value="1" name="tuesday" {tuesdayon}> On
+                                </label>
+                                <label>
+                                    <input type="radio" value="0" name="tuesday" {tuesdayoff}> Off
+                                </label>
+                            </div>
+                            <label>Hour: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="tuesdayHour" value="{tuesdayHour}">
+                            <label>Minute: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="tuesdayMinute" value="{tuesdayMinute}">
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Wednesday</legend>
+                    <div class="col-md-offset-2">
+                        <div class="form-group">
+                            <label>Enable: </label>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="radio" value="1" name="wednesday" {wednesdayon}> On
+                                </label>
+                                <label>
+                                    <input type="radio" value="0" name="wednesday" {wednesdayoff}> Off
+                                </label>
+                            </div>
+                            <label>Hour: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="wednesdayHour" value="{wednesdayHour}">
+                            <label>Minute: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="wednesdayMinute" value="{wednesdayMinute}">
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Thursday</legend>
+                    <div class="col-md-offset-2">
+                        <div class="form-group">
+                            <label>Enable: </label>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="radio" value="1" name="thursday" {thursdayon}> On
+                                </label>
+                                <label>
+                                    <input type="radio" value="0" name="thursday" {thursdayoff}> Off
+                                </label>
+                            </div>
+                            <label>Hour: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="thursdayHour" value="{thursdayHour}">
+                            <label>Minute: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="thursdayMinute" value="{thursdayMinute}">
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Friday</legend>
+                    <div class="col-md-offset-2">
+                        <div class="form-group">
+                            <label>Enable: </label>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="radio" value="1" name="friday" {fridayon}> On
+                                </label>
+                                <label>
+                                    <input type="radio" value="0" name="friday" {fridayoff}> Off
+                                </label>
+                            </div>
+                            <label>Hour: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="fridayHour" value="{fridayHour}">
+                            <label>Minute: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="fridayMinute" value="{fridayMinute}">
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Saturday</legend>
+                    <div class="col-md-offset-2">
+                        <div class="form-group">
+                            <label>Enable: </label>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="radio" value="1" name="saturday" {saturdayon}> On
+                                </label>
+                                <label>
+                                    <input type="radio" value="0" name="saturday" {saturdayoff}> Off
+                                </label>
+                            </div>
+                            <label>Hour: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="saturdayHour" value="{saturdayHour}">
+                            <label>Minute: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="saturdayMinute" value="{saturdayMinute}">
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Sunday</legend>
+                    <div class="col-md-offset-2">
+                        <div class="form-group">
+                            <label>Enable: </label>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="radio" value="1" name="sunday" {sundayon}> On
+                                </label>
+                                <label>
+                                    <input type="radio" value="0" name="sunday" {sundayoff}> Off
+                                </label>
+                            </div>
+                            <label>Hour: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="sundayHour" value="{sundayHour}">
+                            <label>Minute: </label>
+                            <input class="form-control" style="width: 80px" type="number" name="sundayMinute" value="{sundayMinute}">
+                        </div>
+                    </div>
+                </fieldset>
+                <div class="col-md-offset-3">
+                    <input type="submit" class="btn btn-success">
+                </div>
+            </form>
+        </div>
+    </div>
+    <footer class="footer">
+        <!--<p>&copy; Linus Lundin 2016</p>-->
+    </footer>
+
+</div> <!-- /container -->
+</body>
+</html>

@@ -14,8 +14,8 @@
 
 struct ApplicationSettingsStorage
 {
-	String ssid;
-	String password;
+	String ssid = WIFI_SSID;
+	String password = WIFI_PWD;
 
 	bool dhcp = true;
 
@@ -31,6 +31,29 @@ struct ApplicationSettingsStorage
 
 	String mqtt_relayName = "Fonsterlampa";
 	String mqtt_ledName = "IndicatorLED";
+
+
+	bool rmb_sch_monday = false;
+	uint8 rmb_sch_mondayHour = 0;
+	uint8 rmb_sch_mondayMinute = 0;
+	bool rmb_sch_tuesday = false;
+	uint8 rmb_sch_tuesdayHour = 0;
+	uint8 rmb_sch_tuesdayMinute = 0;
+	bool rmb_sch_wednesday = false;
+	uint8 rmb_sch_wednesdayHour = 0;
+	uint8 rmb_sch_wednesdayMinute = 0;
+	bool rmb_sch_thursday = false;
+	uint8 rmb_sch_thursdayHour = 0;
+	uint8 rmb_sch_thursdayMinute = 0;
+	bool rmb_sch_friday = false;
+	uint8 rmb_sch_fridayHour = 0;
+	uint8 rmb_sch_fridayMinute = 0;
+	bool rmb_sch_saturday = false;
+	uint8 rmb_sch_saturdayHour = 0;
+	uint8 rmb_sch_saturdayMinute = 0;
+	bool rmb_sch_sunday = false;
+	uint8 rmb_sch_sundayHour = 0;
+	uint8 rmb_sch_sundayMinute = 0;
 
 	String ota_ROM_0 = "http://hok.famlundin.org:80/rom0.bin";
 	String ota_ROM_1 = "http://hok.famlundin.org:80/rom1.bin";
@@ -64,6 +87,29 @@ struct ApplicationSettingsStorage
 			mqtt_period = mqtt["period"];
 			mqtt_relayName = mqtt["relayName"].asString();
 			mqtt_ledName = mqtt["ledName"].asString();
+
+			JsonObject& rmb_sch = root["rmb_sch"];
+			rmb_sch_monday = rmb_sch["monday"];
+			rmb_sch_mondayHour = rmb_sch["mondayHour"];
+			rmb_sch_mondayMinute = rmb_sch["mondayMinute"];
+			rmb_sch_tuesday = rmb_sch["tuesday"];
+			rmb_sch_tuesdayHour = rmb_sch["tuesdayHour"];
+			rmb_sch_tuesdayMinute = rmb_sch["tuesdayMinute"];
+			rmb_sch_wednesday = rmb_sch["wednesday"];
+			rmb_sch_wednesdayHour = rmb_sch["wednesdayHour"];
+			rmb_sch_wednesdayMinute = rmb_sch["wednesdayMinute"];
+			rmb_sch_thursday = rmb_sch["thursday"];
+			rmb_sch_thursdayHour = rmb_sch["thursdayHour"];
+			rmb_sch_thursdayMinute = rmb_sch["thursdayMinute"];
+			rmb_sch_friday = rmb_sch["friday"];
+			rmb_sch_fridayHour = rmb_sch["fridayHour"];
+			rmb_sch_fridayMinute = rmb_sch["fridayMinute"];
+			rmb_sch_saturday = rmb_sch["saturday"];
+			rmb_sch_saturdayHour = rmb_sch["saturdayHour"];
+			rmb_sch_saturdayMinute = rmb_sch["saturdayMinute"];
+			rmb_sch_sunday = rmb_sch["sunday"];
+			rmb_sch_sundayHour = rmb_sch["sundayHour"];
+			rmb_sch_sundayMinute = rmb_sch["sundayMinute"];
 
 			JsonObject& ota = root["ota"];
 			ota_ROM_0 = ota["rom0"].asString();
@@ -108,6 +154,31 @@ struct ApplicationSettingsStorage
 		ota["rom0"] = ota_ROM_0.c_str();
 		ota["rom1"] = ota_ROM_1.c_str();
 		ota["spiffs"] = ota_SPIFFS.c_str();
+
+
+		JsonObject& rmb_sch = jsonBuffer.createObject();
+		root["rmb_sch"] = rmb_sch;
+		rmb_sch["monday"] = rmb_sch_monday;
+		rmb_sch["mondayHour"] = rmb_sch_mondayHour;
+		rmb_sch["mondayMinute"] = rmb_sch_mondayMinute;
+		rmb_sch["tuesday"] = rmb_sch_tuesday;
+		rmb_sch["tuesdayHour"] = rmb_sch_tuesdayHour;
+		rmb_sch["tuesdayMinute"] = rmb_sch_tuesdayMinute;
+		rmb_sch["wednesday"] = rmb_sch_wednesday;
+		rmb_sch["wednesdayHour"] = rmb_sch_wednesdayHour;
+		rmb_sch["wednesdayMinute"] = rmb_sch_wednesdayMinute;
+		rmb_sch["thursday"] = rmb_sch_thursday;
+		rmb_sch["thursdayHour"] = rmb_sch_thursdayHour;
+		rmb_sch["thursdayMinute"] = rmb_sch_thursdayMinute;
+		rmb_sch["friday"] = rmb_sch_friday;
+		rmb_sch["fridayHour"] = rmb_sch_fridayHour;
+		rmb_sch["fridayMinute"] = rmb_sch_fridayMinute;
+		rmb_sch["saturday"] = rmb_sch_saturday;
+		rmb_sch["saturdayHour"] = rmb_sch_saturdayHour;
+		rmb_sch["saturdayMinute"] = rmb_sch_saturdayMinute;
+		rmb_sch["sunday"] = rmb_sch_sunday;
+		rmb_sch["sundayHour"] = rmb_sch_sundayHour;
+		rmb_sch["sundayMinute"] = rmb_sch_sundayMinute;
 
 		//TODO: add direct file stream writing
 		String rootString;

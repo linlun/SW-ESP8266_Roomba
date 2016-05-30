@@ -2,13 +2,15 @@
 #include <SmingCore/SmingCore.h>
 #include <AppSettings.h>
 #include <roomba.h>
+#include "NtpClientDelegateDemo.h"
+
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
 	#define WIFI_SSID "blablabla" // Put you SSID and Password here
 	#define WIFI_PWD "blablabla"
 #endif
 
-static volatile Roomba_Sensor_Data_t	sensordata2;
+//static volatile Roomba_Sensor_Data_t	sensordata2;
 
 HttpServer server;
 roomba roomba(PIN_ROOBA_WAKE);
@@ -22,6 +24,9 @@ rBootHttpUpdate* otaUpdater = 0;
 	#define MQTT_PWD "linusPass"
 #endif
 
+ntpClientDemo *ntpDemo;
+Timer printTimer;
+
 // ... and/or MQTT host and port
 #ifndef MQTT_HOST
 	//#define MQTT_HOST "test.mosquitto.org"
@@ -34,6 +39,14 @@ void startMqttClient();
 void onMessageReceived(String topic, String message);
 
 Timer procTimer;
+
+void onPrintSystemTime() {
+	Serial.print("Local Time    : ");
+	Serial.println(SystemClock.getSystemTimeString());
+	Serial.print("UTC Time: ");
+	Serial.println(SystemClock.getSystemTimeString(eTZ_UTC));
+}
+
 
 // MQTT client
 // For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
@@ -268,7 +281,7 @@ void startMqttClient()
 void connectOk()
 {
 	Serial.println("I'm CONNECTED");
-
+	ntpDemo = new ntpClientDemo();
 	// Run MQTT client
 	//startMqttClient();
 
@@ -327,6 +340,72 @@ void onIpConfig(HttpRequest &request, HttpResponse &response)
 
 	response.sendTemplate(tmpl); // will be automatically deleted
 }
+
+
+void onRoombaScheduling(HttpRequest &request, HttpResponse &response)
+{
+	if (request.getRequestMethod() == RequestMethod::POST)
+	{
+		AppSettings.rmb_sch_monday = request.getPostParameter("monday") == "1";
+		AppSettings.rmb_sch_mondayHour = request.getPostParameter("mondayHour").toInt();
+		AppSettings.rmb_sch_mondayMinute = request.getPostParameter("mondayMinute").toInt();
+		AppSettings.rmb_sch_tuesday = request.getPostParameter("tuesday") == "1";
+		AppSettings.rmb_sch_tuesdayHour = request.getPostParameter("tuesdayHour").toInt();
+		AppSettings.rmb_sch_tuesdayMinute = request.getPostParameter("tuesdayMinute").toInt();
+		AppSettings.rmb_sch_wednesday = request.getPostParameter("wednesday") == "1";
+		AppSettings.rmb_sch_wednesdayHour = request.getPostParameter("wednesdayHour").toInt();
+		AppSettings.rmb_sch_wednesdayMinute = request.getPostParameter("wednesdayMinute").toInt();
+		AppSettings.rmb_sch_thursday = request.getPostParameter("thursday") == "1";
+		AppSettings.rmb_sch_thursdayHour = request.getPostParameter("thursdayHour").toInt();
+		AppSettings.rmb_sch_thursdayMinute = request.getPostParameter("thursdayMinute").toInt();
+		AppSettings.rmb_sch_friday = request.getPostParameter("friday") == "1";
+		AppSettings.rmb_sch_fridayHour = request.getPostParameter("fridayHour").toInt();
+		AppSettings.rmb_sch_fridayMinute = request.getPostParameter("fridayMinute").toInt();
+		AppSettings.rmb_sch_saturday = request.getPostParameter("saturday") == "1";
+		AppSettings.rmb_sch_saturdayHour = request.getPostParameter("saturdayHour").toInt();
+		AppSettings.rmb_sch_saturdayMinute = request.getPostParameter("saturdayMinute").toInt();
+		AppSettings.rmb_sch_sunday = request.getPostParameter("sunday") == "1";
+		AppSettings.rmb_sch_sundayHour = request.getPostParameter("sundayHour").toInt();
+		AppSettings.rmb_sch_sundayMinute = request.getPostParameter("sundayMinute").toInt();
+		//debugf("Updating MQTT settings: %d", AppSettings.ip.isNull());
+		AppSettings.save();
+	}
+
+	TemplateFileStream *tmpl = new TemplateFileStream("roomba_scheduling.html");
+	auto &vars = tmpl->variables();
+	vars["mondayon"] = AppSettings.rmb_sch_monday ? "checked='checked'" : "";
+	vars["mondayoff"] = !AppSettings.rmb_sch_monday ? "checked='checked'" : "";
+	vars["mondayHour"] = AppSettings.rmb_sch_mondayHour;
+	vars["mondayMinute"] = AppSettings.rmb_sch_mondayMinute;
+	vars["tuesdayon"] = AppSettings.rmb_sch_tuesday ? "checked='checked'" : "";
+	vars["tuesdayoff"] = !AppSettings.rmb_sch_tuesday ? "checked='checked'" : "";
+	vars["tuesdayHour"] = AppSettings.rmb_sch_tuesdayHour;
+	vars["tuesdayMinute"] = AppSettings.rmb_sch_tuesdayMinute;
+	vars["wednesdayon"] = AppSettings.rmb_sch_wednesday ? "checked='checked'" : "";
+	vars["wednesdayoff"] = !AppSettings.rmb_sch_wednesday ? "checked='checked'" : "";
+	vars["wednesdayHour"] = AppSettings.rmb_sch_wednesdayHour;
+	vars["wednesdayMinute"] = AppSettings.rmb_sch_wednesdayMinute;
+	vars["thursdayon"] = AppSettings.rmb_sch_thursday ? "checked='checked'" : "";
+	vars["thursdayoff"] = !AppSettings.rmb_sch_thursday ? "checked='checked'" : "";
+	vars["thursdayHour"] = AppSettings.rmb_sch_thursdayHour;
+	vars["thursdayMinute"] = AppSettings.rmb_sch_thursdayMinute;
+	vars["fridayon"] = AppSettings.rmb_sch_friday ? "checked='checked'" : "";
+	vars["fridayoff"] = !AppSettings.rmb_sch_friday ? "checked='checked'" : "";
+	vars["fridayHour"] = AppSettings.rmb_sch_fridayHour;
+	vars["fridayMinute"] = AppSettings.rmb_sch_fridayMinute;
+	vars["saturdayon"] = AppSettings.rmb_sch_saturday ? "checked='checked'" : "";
+	vars["saturdayoff"] = !AppSettings.rmb_sch_saturday ? "checked='checked'" : "";
+	vars["saturdayHour"] = AppSettings.rmb_sch_saturdayHour;
+	vars["saturdayMinute"] = AppSettings.rmb_sch_saturdayMinute;
+	vars["sundayon"] = AppSettings.rmb_sch_sunday ? "checked='checked'" : "";
+	vars["sundayoff"] = !AppSettings.rmb_sch_sunday ? "checked='checked'" : "";
+	vars["sundayHour"] = AppSettings.rmb_sch_sundayHour;
+	vars["sundayMinute"] = AppSettings.rmb_sch_sundayMinute;
+
+	response.sendTemplate(tmpl); // will be automatically deleted
+}
+
+
 void onMqttConfig(HttpRequest &request, HttpResponse &response)
 {
 	if (request.getRequestMethod() == RequestMethod::POST)
@@ -490,6 +569,8 @@ void startWebServer()
 	server.addPath("/ajax/get-networks", onAjaxNetworkList);
 	server.addPath("/ajax/run-ota", onAjaxRunOta);
 	server.addPath("/ajax/connect", onAjaxConnect);
+	server.addPath("/Roomba_Scheduling", onRoombaScheduling);
+
 	server.setDefaultHandler(onFile);
 }
 
@@ -510,8 +591,8 @@ void networkScanCompleted(bool succeeded, BssList list)
 	networks.sort([](const BssInfo& a, const BssInfo& b){ return b.rssi - a.rssi; } );
 }
 void init() {
-	system_set_os_print(0);
-	Serial.systemDebugOutput(false); // Debug output to serial
+	//system_set_os_print(0);
+	//Serial.systemDebugOutput(false); // Debug output to serial
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
 	system_update_cpu_freq(SYS_CPU_160MHZ);
 	
@@ -571,9 +652,16 @@ void init() {
 	//pinMode(12, OUTPUT);
 	//pinMode(13, OUTPUT);
 	Serial.setCallback(serialCallBack);
+
+	// set timezone hourly difference to UTC
+	SystemClock.setTimeZone(2);
+
+	printTimer.initializeMs(20000, onPrintSystemTime).start();
+
 	// Run our method when station was connected to AP (or not connected)
 	WifiStation.waitConnection(connectOk, 20, connectFail); // We recommend 20+ seconds for connection timeout at start
 	//runRx();
+
 
 
 }
