@@ -1,7 +1,7 @@
 #include <user_config.h>
 #include <SmingCore/SmingCore.h>
 #include <AppSettings.h>
-#include <roomba.h>
+#include "roomba.h"
 #include "NtpClientDelegateDemo.h"
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
@@ -200,6 +200,7 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 		} else {
 			Serial.println("unknown command");
 		}
+		roomba.setTime();
 	}
 }
 
@@ -229,7 +230,7 @@ void publishMessage()
 // Callback for messages, arrived from MQTT server
 void onMessageReceived(String topic, String message)
 {
-	if (topic.equals(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Set"))
+	if (topic.equals(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/0/Switch/Set"))
 	{
 		if (message.equals("ON"))
 		{
@@ -240,17 +241,7 @@ void onMessageReceived(String topic, String message)
 			//SetLedOutput(LOW);
 		}
 	}
-	if (topic.equals(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Switch/Set"))
-	{
-		if (message.equals("ON"))
-		{
-			//SetRelayOutput(HIGH);
-		}
-		else
-		{
-			//SetRelayOutput(LOW);
-		}
-	}
+
 	Serial.print(topic);
 	Serial.print(":\r\n\t"); // Pretify alignment for printing
 	Serial.println(message);
@@ -273,8 +264,7 @@ void startMqttClient()
 	mqtt->connect(mqtt_client, MQTT_USERNAME, MQTT_PWD);
 	// Assign a disconnect callback function
 	mqtt->setCompleteDelegate(checkMQTTDisconnect);
-	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_ledName + "/0/Switch/Set");
-	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_relayName + "/0/Switch/Set");
+	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/0/Switch/Set");
 }
 
 // Will be called when WiFi station was connected to AP
@@ -341,7 +331,25 @@ void onIpConfig(HttpRequest &request, HttpResponse &response)
 	response.sendTemplate(tmpl); // will be automatically deleted
 }
 
+void onRoombaCtrl(HttpRequest &request, HttpResponse &response)
+{
+	if (request.getRequestMethod() == RequestMethod::POST)
+	{
+		/*
+		Serial.printf("Updating MQTT settings: %d", AppSettings.ip.isNull());
+		roomba.schedule(AppSettings);
+		AppSettings.save();
+		*/
+	}
 
+	TemplateFileStream *tmpl = new TemplateFileStream("roomba_ctrl.html");
+	auto &vars = tmpl->variables();
+	/*
+	vars["mondayon"] = AppSettings.rmb_sch_monday ? "checked='checked'" : "";
+	vars["mondayHour"] = AppSettings.rmb_sch_mondayHour;
+	*/
+	response.sendTemplate(tmpl); // will be automatically deleted
+}
 void onRoombaScheduling(HttpRequest &request, HttpResponse &response)
 {
 	if (request.getRequestMethod() == RequestMethod::POST)
@@ -367,8 +375,10 @@ void onRoombaScheduling(HttpRequest &request, HttpResponse &response)
 		AppSettings.rmb_sch_sunday = request.getPostParameter("sunday") == "1";
 		AppSettings.rmb_sch_sundayHour = request.getPostParameter("sundayHour").toInt();
 		AppSettings.rmb_sch_sundayMinute = request.getPostParameter("sundayMinute").toInt();
-		//debugf("Updating MQTT settings: %d", AppSettings.ip.isNull());
+		Serial.printf("Updating MQTT settings: %d", AppSettings.ip.isNull());
+		roomba.schedule(AppSettings);
 		AppSettings.save();
+
 	}
 
 	TemplateFileStream *tmpl = new TemplateFileStream("roomba_scheduling.html");
@@ -415,8 +425,7 @@ void onMqttConfig(HttpRequest &request, HttpResponse &response)
 		AppSettings.mqtt_server = request.getPostParameter("adr");
 		AppSettings.mqtt_period = request.getPostParameter("period").toInt();
 		AppSettings.mqtt_port = request.getPostParameter("port").toInt();
-		AppSettings.mqtt_ledName = request.getPostParameter("ledName");
-		AppSettings.mqtt_relayName = request.getPostParameter("relayName");
+		AppSettings.mqtt_roombaName = request.getPostParameter("roombaName");
 		//debugf("Updating MQTT settings: %d", AppSettings.ip.isNull());
 		AppSettings.save();
 	}
@@ -429,8 +438,7 @@ void onMqttConfig(HttpRequest &request, HttpResponse &response)
 	vars["period"] = AppSettings.mqtt_period;
 	vars["port"] = AppSettings.mqtt_port;
 	vars["adr"] = AppSettings.mqtt_server;
-	vars["ledName"] = AppSettings.mqtt_ledName;
-	vars["relayName"] = AppSettings.mqtt_relayName;
+	vars["roombaName"] = AppSettings.mqtt_roombaName;
 
 	response.sendTemplate(tmpl); // will be automatically deleted
 }
@@ -454,6 +462,17 @@ void onOtaConfig(HttpRequest &request, HttpResponse &response)
 	vars["spiffs"] = AppSettings.ota_SPIFFS;
 
 	response.sendTemplate(tmpl); // will be automatically deleted
+}
+
+void onSensors(HttpRequest &request, HttpResponse &response)
+{
+	JsonObjectStream* stream = new JsonObjectStream();
+	JsonObject& json = stream->getRoot();
+	if (roomba.isConnected())
+	{
+		roomba.getSensorDataAsJson(json);
+	}
+	response.sendJsonObject(stream);
 }
 
 void onFile(HttpRequest &request, HttpResponse &response)
@@ -570,6 +589,9 @@ void startWebServer()
 	server.addPath("/ajax/run-ota", onAjaxRunOta);
 	server.addPath("/ajax/connect", onAjaxConnect);
 	server.addPath("/Roomba_Scheduling", onRoombaScheduling);
+	server.addPath("/Roomba_Control", onRoombaCtrl);
+	server.addPath("/sensors", onSensors);
+
 
 	server.setDefaultHandler(onFile);
 }
@@ -592,7 +614,7 @@ void networkScanCompleted(bool succeeded, BssList list)
 }
 void init() {
 	//system_set_os_print(0);
-	//Serial.systemDebugOutput(false); // Debug output to serial
+	Serial.systemDebugOutput(false); // Debug output to serial
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
 	system_update_cpu_freq(SYS_CPU_160MHZ);
 	

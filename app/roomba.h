@@ -11,6 +11,7 @@
 #include <config.h>
 #include <stdlib.h>
 #include <SmingCore/SmingCore.h>
+#include <AppSettings.h>
 /*
 Detailed specification of the protocol can be found here:
 https://cdn-shop.adafruit.com/datasheets/create_2_Open_Interface_Spec.pdf
@@ -62,31 +63,40 @@ http://www.robotappstore.com/files/KB/Roomba/Create%20Open%20Interface_v2.pdf
 #define CHARGE_STATE_WAITING			4
 #define CHARGE_STATE_CHARGING_ERROR		5
 
-
-typedef struct {
-	uint8	not_used: 3;
-	uint8	wheel_caster: 1;
-	uint8	wheel_left: 1;
-	uint8	wheel_right: 1;
-	uint8	bump_left: 1;
-	uint8	bump_right: 1;
+typedef union {
+	uint8 b;
+	struct {
+		uint8	not_used: 3;
+		uint8	wheel_caster: 1;
+		uint8	wheel_left: 1;
+		uint8	wheel_right: 1;
+		uint8	bump_left: 1;
+		uint8	bump_right: 1;
+	} r;
 } bumps_t;
 
-typedef struct {
-	uint8	not_used: 3;
-	uint8	drive_left: 1;
-	uint8	drive_right: 1;
-	uint8	main_brush: 1;
-	uint8	vacuum: 1;
-	uint8	side_brush: 1;
+
+typedef union {
+	uint8 b;
+	struct {
+		uint8	not_used: 3;
+		uint8	drive_left: 1;
+		uint8	drive_right: 1;
+		uint8	main_brush: 1;
+		uint8	vacuum: 1;
+		uint8	side_brush: 1;
+	} r;
 } ovrcur_t;
 
-typedef struct {
-	uint8	not_used: 4;
-	uint8	power: 1;
-	uint8	spot: 1;
-	uint8	clean: 1;
-	uint8	max: 1;
+typedef union {
+	uint8 b;
+	struct {
+		uint8	not_used: 4;
+		uint8	power: 1;
+		uint8	spot: 1;
+		uint8	clean: 1;
+		uint8	max: 1;
+	} r;
 } btn_t;
 
 /* Roomba data structure */
@@ -96,7 +106,7 @@ typedef union
     /* MISRA 2004 Rule 5.7 VIOLATION: Refer to REF1 above                     */
     uint8 bytes[26];
     /* MISRA 2004 Rule 6.4 VIOLATIONS: Refer to REF2 above                    */
-    typedef struct {
+    struct {
     	bumps_t bumps;
     	uint8 wall;
     	uint8 cliff_left;
@@ -126,15 +136,26 @@ class roomba {
 	roomba(uint8_t wakepin);
 	void Process(void);
 	void start(int processPeriod);
+	void setTime(void);
+	void requestSensorData(uint8 sensorGroup = 0);
+	void schedule(ApplicationSettingsStorage AppSettings);
+	void sendCommand(uint8 cmd);
+	void connect(void);
+	void disconnect(void);
+	void getSensorDataAsJson(JsonObject& rmb);
+	bool isConnected();
   private:
+	void _connect(void);
 	void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCharsCount);
 	uint8_t m_wakepin;
 	Roomba_Sensor_Data_t	sensordata;
 	bool _timerExpired;
 	Timer _timer;
+	Timer statetimer;
 	uint8_t buffer[64];
 	uint8_t bufferposition;
 	uint8_t expectedResponse;
+	bool connected = false;
 };
 
 #endif /* APP_ROOMBA_H_ */

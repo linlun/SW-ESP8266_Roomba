@@ -29,8 +29,7 @@ struct ApplicationSettingsStorage
 	uint32 mqtt_period = 1800;
 	uint32 mqtt_port = 1883;
 
-	String mqtt_relayName = "Fonsterlampa";
-	String mqtt_ledName = "IndicatorLED";
+	String mqtt_roombaName = "pumba";
 
 
 	bool rmb_sch_monday = false;
@@ -85,8 +84,7 @@ struct ApplicationSettingsStorage
 			mqtt_server = mqtt["server"].asString();
 			mqtt_port = mqtt["port"];
 			mqtt_period = mqtt["period"];
-			mqtt_relayName = mqtt["relayName"].asString();
-			mqtt_ledName = mqtt["ledName"].asString();
+			mqtt_roombaName = mqtt["roombaName"].asString();
 
 			JsonObject& rmb_sch = root["rmb_sch"];
 			rmb_sch_monday = rmb_sch["monday"];
@@ -146,8 +144,7 @@ struct ApplicationSettingsStorage
 		mqtt["port"] = mqtt_port;
 		mqtt["period"] = mqtt_period;
 
-		mqtt["relayName"] = mqtt_relayName.c_str();
-		mqtt["ledName"] = mqtt_ledName.c_str();
+		mqtt["roombaName"] = mqtt_roombaName.c_str();
 
 		JsonObject& ota = jsonBuffer.createObject();
 		root["ota"] = ota;
