@@ -111,7 +111,7 @@ struct ApplicationSettingsStorage
 
 			JsonObject& ota = root["ota"];
 			ota_ROM_0 = ota["rom0"].asString();
-			ota_ROM_0 = ota["rom1"].asString();
+			ota_ROM_1 = ota["rom1"].asString();
 			ota_SPIFFS = ota["spiffs"].asString();
 
 			delete[] jsonString;

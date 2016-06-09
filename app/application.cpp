@@ -3,7 +3,8 @@
 #include <AppSettings.h>
 #include "roomba.h"
 #include "NtpClientDelegateDemo.h"
-
+#include <WS2812/WS2812.h>
+#define LED_PIN 4 // GPIO4
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
 	#define WIFI_SSID "blablabla" // Put you SSID and Password here
@@ -616,8 +617,12 @@ void init() {
 	//system_set_os_print(0);
 	Serial.systemDebugOutput(false); // Debug output to serial
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
-	system_update_cpu_freq(SYS_CPU_160MHZ);
-	
+	//system_update_cpu_freq(SYS_CPU_160MHZ);
+	pinMode(5, OUTPUT);
+	digitalWrite(5,1);
+	char buffer1[] = "\x40\x00\x00\x00\x40\x00\x00\x00\x40";
+	//char buffer1[] = "\x40\x00\x00\x00\x40\x00\x00\x00\x40\x00\x40\x00\x00\x00\x40\x40\x00\x00";
+	ws2812_writergb(LED_PIN, buffer1, sizeof(buffer1));
 
 	// mount spiffs
 	int slot = rboot_get_current_rom();
@@ -684,6 +689,9 @@ void init() {
 	WifiStation.waitConnection(connectOk, 20, connectFail); // We recommend 20+ seconds for connection timeout at start
 	//runRx();
 
+
+	//char buffer1[] = "\x40\x00\x00\x00\x40\x00\x00\x00\x40\x00\x40\x00\x00\x00\x40\x40\x00\x00";
+	ws2812_writergb(LED_PIN, buffer1, sizeof(buffer1));
 
 
 }
