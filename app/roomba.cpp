@@ -6,8 +6,17 @@
  */
 
 #include <roomba.h>
-#include <SmingCore/SmingCore.h>
+#include <SmingCore.h>
+/*
 
+Sensor packet:
+Id 0:
+000 000 000 001 001 000 000 000 000 000 000 000 000 000 000 000 004 061 136 255 123 025 009 254 010 015
+
+Id 6:
+000 000 000 001 001 000 000 000 000 000 000 000 000 000 000 000 004 061 109 255 123 025 009 247 010 015 000 002 011 099 000 023 000 000 011 124 000 000 000 000 001 000 000 000 000 000 000 000 000 000 000 000
+
+*/
 void roomba::serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCharsCount) {
 	switch (expectedResponse)
 	{
@@ -17,6 +26,32 @@ void roomba::serialCallBack(Stream& stream, char arrivedChar, unsigned short ava
 			for (int i = 0; i < availableCharsCount; i++) {
 				sensordata.bytes[i] = stream.read();
 			}
+			//Switch bytes in 2 byte variables
+			uint8 tmp;
+			uint8 i=12;
+			tmp = sensordata.bytes[i];
+			sensordata.bytes[i] = sensordata.bytes[i+1];
+			sensordata.bytes[i+1] = tmp;
+			i=14;
+			tmp = sensordata.bytes[i];
+			sensordata.bytes[i] = sensordata.bytes[i+1];
+			sensordata.bytes[i+1] = tmp;
+			i=17;
+			tmp = sensordata.bytes[i];
+			sensordata.bytes[i] = sensordata.bytes[i+1];
+			sensordata.bytes[i+1] = tmp;
+			i=19;
+			tmp = sensordata.bytes[i];
+			sensordata.bytes[i] = sensordata.bytes[i+1];
+			sensordata.bytes[i+1] = tmp;
+			i=22;
+			tmp = sensordata.bytes[i];
+			sensordata.bytes[i] = sensordata.bytes[i+1];
+			sensordata.bytes[i+1] = tmp;
+			i=24;
+			tmp = sensordata.bytes[i];
+			sensordata.bytes[i] = sensordata.bytes[i+1];
+			sensordata.bytes[i+1] = tmp;
 			expectedResponse = ROOMBA_CMD_NONE;
 		}
 		break;
@@ -131,6 +166,7 @@ void roomba::requestSensorData(uint8 sensorGroup)
 {
 	uint8 i = 0;
 	char buffer[2];
+	Serial.println("Sending sensor data request");
 	buffer[0]=142;
 	buffer[1]=sensorGroup;
 	if (sensorGroup == 0)
@@ -150,6 +186,7 @@ bool roomba::isConnected()
 
 void roomba::_connect()
 {
+	Serial.setCallback(StreamDataReceivedDelegate(&roomba::serialCallBack,this));
 	sendCommand(ROOMBA_CMD_START);
 	digitalWrite(m_wakepin, LOW);
 	this->requestSensorData(0);
@@ -158,7 +195,7 @@ void roomba::_connect()
 
 void roomba::connect()
 {
-	statetimer.initializeMs(300 , TimerDelegate(&roomba::Process,this)).startOnce();
+	statetimer.initializeMs(300 , TimerDelegate(&roomba::_connect,this)).startOnce();
 	digitalWrite(m_wakepin, HIGH);
 }
 

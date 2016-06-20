@@ -5,12 +5,26 @@
  *      Author: Anakod
  */
 
-#include <SmingCore/SmingCore.h>
+#include "SmingCore.h"
 
 #ifndef INCLUDE_APPSETTINGS_H_
 #define INCLUDE_APPSETTINGS_H_
 
 #define APP_SETTINGS_FILE ".settings.conf" // leading point for security reasons :)
+
+// ... and/or MQTT username and password
+#ifndef MQTT_USERNAME
+	#define MQTT_USERNAME "linus"
+	#define MQTT_PWD "linusPass"
+#endif
+
+
+// ... and/or MQTT host and port
+#ifndef MQTT_HOST
+	//#define MQTT_HOST "test.mosquitto.org"
+	#define MQTT_HOST "hok.famlundin.org"
+	#define MQTT_PORT 1883
+#endif
 
 struct ApplicationSettingsStorage
 {
@@ -23,11 +37,11 @@ struct ApplicationSettingsStorage
 	IPAddress netmask;
 	IPAddress gateway;
 
-	String mqtt_server = "192.168.1.66";
-	String mqtt_user = "user";
-	String mqtt_password = "password";
+	String mqtt_server = MQTT_HOST;
+	String mqtt_user = MQTT_USERNAME;
+	String mqtt_password = MQTT_PWD;
 	uint32 mqtt_period = 1800;
-	uint32 mqtt_port = 1883;
+	uint32 mqtt_port = MQTT_PORT;
 
 	String mqtt_roombaName = "pumba";
 
@@ -53,10 +67,10 @@ struct ApplicationSettingsStorage
 	bool rmb_sch_sunday = false;
 	uint8 rmb_sch_sundayHour = 0;
 	uint8 rmb_sch_sundayMinute = 0;
+	//String ota_SPIFFS = "https://hok.famlundin.org:443/SW/SW-ESP8266_Lunch/spiff_rom.bin";
 
-	String ota_ROM_0 = "http://hok.famlundin.org:80/rom0.bin";
-	String ota_ROM_1 = "http://hok.famlundin.org:80/rom1.bin";
-	String ota_SPIFFS = "http://hok.famlundin.org:80/spiff_rom.bin";
+	String ota_ROM_0 = "http://192.168.1.128:80/SW/SW-ESP8266_Roomba/rom0.bin";
+	String ota_SPIFFS = "http://192.168.1.128:80/SW/SW-ESP8266_Roomba/spiff_rom.bin";
 
 	void load()
 	{
@@ -111,7 +125,6 @@ struct ApplicationSettingsStorage
 
 			JsonObject& ota = root["ota"];
 			ota_ROM_0 = ota["rom0"].asString();
-			ota_ROM_1 = ota["rom1"].asString();
 			ota_SPIFFS = ota["spiffs"].asString();
 
 			delete[] jsonString;
@@ -149,7 +162,6 @@ struct ApplicationSettingsStorage
 		JsonObject& ota = jsonBuffer.createObject();
 		root["ota"] = ota;
 		ota["rom0"] = ota_ROM_0.c_str();
-		ota["rom1"] = ota_ROM_1.c_str();
 		ota["spiffs"] = ota_SPIFFS.c_str();
 
 

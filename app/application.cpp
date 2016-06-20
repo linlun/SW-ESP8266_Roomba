@@ -1,17 +1,15 @@
 #include <user_config.h>
-#include <SmingCore/SmingCore.h>
+#include "SmingCore.h"
 #include <AppSettings.h>
+#include <config.h>
 #include "roomba.h"
 #include "NtpClientDelegateDemo.h"
-#include <WS2812/WS2812.h>
-#define LED_PIN 4 // GPIO4
+
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
 	#define WIFI_SSID "blablabla" // Put you SSID and Password here
 	#define WIFI_PWD "blablabla"
 #endif
-
-//static volatile Roomba_Sensor_Data_t	sensordata2;
 
 HttpServer server;
 roomba roomba(PIN_ROOBA_WAKE);
@@ -19,35 +17,23 @@ BssList networks;
 String network, password;
 String mqtt_client;
 rBootHttpUpdate* otaUpdater = 0;
-// ... and/or MQTT username and password
-#ifndef MQTT_USERNAME
-	#define MQTT_USERNAME "linus"
-	#define MQTT_PWD "linusPass"
-#endif
 
 ntpClientDemo *ntpDemo;
 Timer printTimer;
-
-// ... and/or MQTT host and port
-#ifndef MQTT_HOST
-	//#define MQTT_HOST "test.mosquitto.org"
-	#define MQTT_HOST "192.168.1.66"
-	#define MQTT_PORT 1883
-#endif
 
 // Forward declarations
 void startMqttClient();
 void onMessageReceived(String topic, String message);
 
 Timer procTimer;
-
+/*
 void onPrintSystemTime() {
 	Serial.print("Local Time    : ");
 	Serial.println(SystemClock.getSystemTimeString());
 	Serial.print("UTC Time: ");
 	Serial.println(SystemClock.getSystemTimeString(eTZ_UTC));
 }
-
+*/
 
 // MQTT client
 // For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
@@ -192,6 +178,7 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 			Serial.println("  cat - show first file in spiffs");
 #endif
 			Serial.println();
+			roomba.connect();
 		} else if (!strcmp(str, "sl")) {
 			Serial.println("Going to sleep");
 			delay(500);
@@ -224,22 +211,75 @@ void publishMessage()
 	if (mqtt->getConnectionState() != eTCS_Connected)
 		startMqttClient(); // Auto reconnect
 
-	Serial.println("Let's publish message now!");
-	mqtt->publish("main/frameworks/sming", "Hello friends, from Internet of things :)"); // or publishWithQoS
+	JsonObjectStream* stream = new JsonObjectStream();
+	JsonObject& json = stream->getRoot();
+	//if (roomba.isConnected())
+	{
+		roomba.getSensorDataAsJson(json);
+	}
+	String rootString;
+	json.printTo(rootString);
+	mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/sensors", rootString); // or publishWithQoS
 }
 
 // Callback for messages, arrived from MQTT server
 void onMessageReceived(String topic, String message)
 {
-	if (topic.equals(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/0/Switch/Set"))
+	if (topic.startsWith(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/"))
 	{
-		if (message.equals("ON"))
+		if (topic.endsWith("wakeup"))
 		{
-			//SetLedOutput(HIGH);
+			if (message.equals("1"))
+			{
+				if (!roomba.isConnected())
+				{
+					roomba.connect();
+				}
+			}
+		} else if (topic.endsWith("clean"))
+		{
+			if (message.equals("1"))
+			{
+				if (!roomba.isConnected())
+				{
+					roomba.connect();
+				} else
+				{
+					roomba.sendCommand(ROOMBA_CMD_CLEAN);
+				}
+			}
+
+		} else if (topic.endsWith("dock"))
+		{
+			if (message.equals("1"))
+			{
+				if (!roomba.isConnected())
+				{
+					roomba.connect();
+				} else
+				{
+					roomba.sendCommand(ROOMBA_CMD_SEEK_DOCK);
+				}
+			}
+
+
+		} else if (topic.endsWith("req"))
+		{
+			roomba.requestSensorData(0);
+			//Serial.println("Let's publish message now!");
+			JsonObjectStream* stream = new JsonObjectStream();
+			JsonObject& json = stream->getRoot();
+			//if (roomba.isConnected())
+			{
+				roomba.getSensorDataAsJson(json);
+			}
+			String rootString;
+			json.printTo(rootString);
+			mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/sensors", rootString); // or publishWithQoS
 		}
-		else
+		else if (topic.endsWith("sensors"))
 		{
-			//SetLedOutput(LOW);
+			return;
 		}
 	}
 
@@ -265,7 +305,7 @@ void startMqttClient()
 	mqtt->connect(mqtt_client, MQTT_USERNAME, MQTT_PWD);
 	// Assign a disconnect callback function
 	mqtt->setCompleteDelegate(checkMQTTDisconnect);
-	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/0/Switch/Set");
+	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/#");
 }
 
 // Will be called when WiFi station was connected to AP
@@ -274,10 +314,10 @@ void connectOk()
 	Serial.println("I'm CONNECTED");
 	ntpDemo = new ntpClientDemo();
 	// Run MQTT client
-	//startMqttClient();
+	startMqttClient();
 
 	// Start publishing loop
-	//procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
+	procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
 }
 
 // Will be called when WiFi station timeout was reached
@@ -449,9 +489,7 @@ void onOtaConfig(HttpRequest &request, HttpResponse &response)
 	if (request.getRequestMethod() == RequestMethod::POST)
 	{
 		AppSettings.ota_ROM_0 = request.getPostParameter("rom0");
-		AppSettings.ota_ROM_1 = request.getPostParameter("rom1");
 		AppSettings.ota_SPIFFS = request.getPostParameter("spiffs");
-		//debugf("Updating MQTT settings: %d", AppSettings.ip.isNull());
 		AppSettings.save();
 	}
 
@@ -459,7 +497,6 @@ void onOtaConfig(HttpRequest &request, HttpResponse &response)
 	auto &vars = tmpl->variables();
 
 	vars["rom0"] = AppSettings.ota_ROM_0;
-	vars["rom1"] = AppSettings.ota_ROM_1;
 	vars["spiffs"] = AppSettings.ota_SPIFFS;
 
 	response.sendTemplate(tmpl); // will be automatically deleted
@@ -469,7 +506,7 @@ void onSensors(HttpRequest &request, HttpResponse &response)
 {
 	JsonObjectStream* stream = new JsonObjectStream();
 	JsonObject& json = stream->getRoot();
-	if (roomba.isConnected())
+	//if (roomba.isConnected())
 	{
 		roomba.getSensorDataAsJson(json);
 	}
@@ -597,11 +634,6 @@ void startWebServer()
 	server.setDefaultHandler(onFile);
 }
 
-// Will be called when system initialization was completed
-void startServers()
-{
-	startWebServer();
-}
 
 void networkScanCompleted(bool succeeded, BssList list)
 {
@@ -613,6 +645,8 @@ void networkScanCompleted(bool succeeded, BssList list)
 	}
 	networks.sort([](const BssInfo& a, const BssInfo& b){ return b.rssi - a.rssi; } );
 }
+
+
 void init() {
 	//system_set_os_print(0);
 	Serial.systemDebugOutput(false); // Debug output to serial
@@ -620,28 +654,25 @@ void init() {
 	//system_update_cpu_freq(SYS_CPU_160MHZ);
 	pinMode(5, OUTPUT);
 	digitalWrite(5,1);
-	char buffer1[] = "\x40\x00\x00\x00\x40\x00\x00\x00\x40";
-	//char buffer1[] = "\x40\x00\x00\x00\x40\x00\x00\x00\x40\x00\x40\x00\x00\x00\x40\x40\x00\x00";
-	ws2812_writergb(LED_PIN, buffer1, sizeof(buffer1));
 
 	// mount spiffs
 	int slot = rboot_get_current_rom();
 #ifndef DISABLE_SPIFFS
 	if (slot == 0) {
 #ifdef RBOOT_SPIFFS_0
-		debugf("trying to mount spiffs at %x, length %d", RBOOT_SPIFFS_0 + 0x40200000, SPIFF_SIZE);
-		spiffs_mount_manual(RBOOT_SPIFFS_0 + 0x40200000, SPIFF_SIZE);
+		debugf("trying to mount spiffs at %x, length %d", RBOOT_SPIFFS_0 , SPIFF_SIZE);
+		spiffs_mount_manual(RBOOT_SPIFFS_0, SPIFF_SIZE);
 #else
-		debugf("trying to mount spiffs at %x, length %d", 0x40300000, SPIFF_SIZE);
-		spiffs_mount_manual(0x40300000, SPIFF_SIZE);
+		debugf("trying to mount spiffs at %x, length %d", 0x100000, SPIFF_SIZE);
+		spiffs_mount_manual(0x100000, SPIFF_SIZE);
 #endif
 	} else {
 #ifdef RBOOT_SPIFFS_1
-		debugf("trying to mount spiffs at %x, length %d", RBOOT_SPIFFS_1 + 0x40200000, SPIFF_SIZE);
-		spiffs_mount_manual(RBOOT_SPIFFS_1 + 0x40200000, SPIFF_SIZE);
+		debugf("trying to mount spiffs at %x, length %d", RBOOT_SPIFFS_1 , SPIFF_SIZE);
+		spiffs_mount_manual(RBOOT_SPIFFS_1, SPIFF_SIZE);
 #else
-		debugf("trying to mount spiffs at %x, length %d", 0x40500000, SPIFF_SIZE);
-		spiffs_mount_manual(0x40500000, SPIFF_SIZE);
+		debugf("trying to mount spiffs at %x, length %d", SPIFF_SIZE);
+		spiffs_mount_manual(0x300000, SPIFF_SIZE);
 #endif
 	}
 
@@ -662,16 +693,16 @@ void init() {
 		if (!AppSettings.dhcp && !AppSettings.ip.isNull())
 			WifiStation.setIP(AppSettings.ip, AppSettings.netmask, AppSettings.gateway);
 	}
-	//mqtt = new MqttClient(AppSettings.mqtt_server,AppSettings.mqtt_port, onMessageReceived);
+	mqtt = new MqttClient(AppSettings.mqtt_server,AppSettings.mqtt_port, onMessageReceived);
 
 	WifiStation.startScan(networkScanCompleted);
 
 	// Start AP for configuration
 	WifiAccessPoint.enable(true);
-	WifiAccessPoint.config("Sming Configuration", "", AUTH_OPEN);
+	WifiAccessPoint.config("Sming Configuration "+ WifiStation.getMAC(), "", AUTH_OPEN);
 
-	// Run WEB server on system ready
-	System.onReady(startServers);
+	// Run WEB server
+	startWebServer();
 	
 	Serial.printf("\r\nCurrently running rom %d.\r\n", slot);
 	Serial.println("Type 'help' and press enter for instructions.");
@@ -679,19 +710,12 @@ void init() {
 	//pinMode(12, OUTPUT);
 	//pinMode(13, OUTPUT);
 	Serial.setCallback(serialCallBack);
-
 	// set timezone hourly difference to UTC
 	SystemClock.setTimeZone(2);
 
-	printTimer.initializeMs(20000, onPrintSystemTime).start();
+	//printTimer.initializeMs(20000, onPrintSystemTime).start();
 
 	// Run our method when station was connected to AP (or not connected)
 	WifiStation.waitConnection(connectOk, 20, connectFail); // We recommend 20+ seconds for connection timeout at start
 	//runRx();
-
-
-	//char buffer1[] = "\x40\x00\x00\x00\x40\x00\x00\x00\x40\x00\x40\x00\x00\x00\x40\x40\x00\x00";
-	ws2812_writergb(LED_PIN, buffer1, sizeof(buffer1));
-
-
 }

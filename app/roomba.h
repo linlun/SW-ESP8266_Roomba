@@ -10,7 +10,7 @@
 
 #include <config.h>
 #include <stdlib.h>
-#include <SmingCore/SmingCore.h>
+#include <SmingCore.h>
 #include <AppSettings.h>
 /*
 Detailed specification of the protocol can be found here:
