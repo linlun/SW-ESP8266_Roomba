@@ -39,6 +39,7 @@ void onPrintSystemTime() {
 // For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
 MqttClient *mqtt;
 
+
 void OtaUpdate_CallBack(bool result) {
 	
 	Serial.println("In callback...");
@@ -178,7 +179,7 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 			Serial.println("  cat - show first file in spiffs");
 #endif
 			Serial.println();
-			roomba.connect();
+			//roomba.connect();
 		} else if (!strcmp(str, "sl")) {
 			Serial.println("Going to sleep");
 			delay(500);
@@ -233,7 +234,7 @@ void onMessageReceived(String topic, String message)
 			{
 				if (!roomba.isConnected())
 				{
-					roomba.connect();
+					//roomba.connect();
 				}
 			}
 		} else if (topic.endsWith("clean"))
@@ -242,10 +243,10 @@ void onMessageReceived(String topic, String message)
 			{
 				if (!roomba.isConnected())
 				{
-					roomba.connect();
+					//roomba.connect();
 				} else
 				{
-					roomba.sendCommand(ROOMBA_CMD_CLEAN);
+					//roomba.sendCommand(ROOMBA_CMD_CLEAN);
 				}
 			}
 
@@ -255,17 +256,17 @@ void onMessageReceived(String topic, String message)
 			{
 				if (!roomba.isConnected())
 				{
-					roomba.connect();
+					//roomba.connect();
 				} else
 				{
-					roomba.sendCommand(ROOMBA_CMD_SEEK_DOCK);
+					//roomba.sendCommand(ROOMBA_CMD_SEEK_DOCK);
 				}
 			}
 
 
 		} else if (topic.endsWith("req"))
 		{
-			roomba.requestSensorData(0);
+			//roomba.requestSensorData(0);
 			//Serial.println("Let's publish message now!");
 			JsonObjectStream* stream = new JsonObjectStream();
 			JsonObject& json = stream->getRoot();
@@ -283,9 +284,9 @@ void onMessageReceived(String topic, String message)
 		}
 	}
 
-	Serial.print(topic);
-	Serial.print(":\r\n\t"); // Pretify alignment for printing
-	Serial.println(message);
+	//Serial.print(topic);
+	//Serial.print(":\r\n\t"); // Pretify alignment for printing
+	//Serial.println(message);
 }
 
 // Run MQTT client
@@ -311,13 +312,15 @@ void startMqttClient()
 // Will be called when WiFi station was connected to AP
 void connectOk()
 {
-	Serial.println("I'm CONNECTED");
+	//Serial.println("I'm CONNECTED");
 	ntpDemo = new ntpClientDemo();
 	// Run MQTT client
 	startMqttClient();
 
 	// Start publishing loop
 	procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
+	//roomba.connect();
+	roomba.start(100);
 }
 
 // Will be called when WiFi station timeout was reached
@@ -648,9 +651,15 @@ void networkScanCompleted(bool succeeded, BssList list)
 
 
 void init() {
+	char hostnametest[]="TEST12";
+	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
+		//Serial.print("wifi_station_get_hostname: ");
+	  //Serial.println(wifi_station_get_hostname());
+	//wifi_station_set_hostname(&hostnametest[0]);
+	//Serial.print("wifi_station_get_hostname: ");
+	//  Serial.println(wifi_station_get_hostname());
 	//system_set_os_print(0);
 	Serial.systemDebugOutput(false); // Debug output to serial
-	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
 	//system_update_cpu_freq(SYS_CPU_160MHZ);
 	pinMode(5, OUTPUT);
 	digitalWrite(5,1);
@@ -684,12 +693,16 @@ void init() {
 
 	WifiAccessPoint.enable(false);
 	// connect to wifi
+	//WifiStation.hostname= "test12";
 	WifiStation.config(WIFI_SSID, WIFI_PWD);
+	char *host = &AppSettings.mqtt_roombaName[0];
+	wifi_station_set_hostname(host);
 	WifiStation.enable(true);
 	
 	if (AppSettings.exist())
 	{
 		WifiStation.config(AppSettings.ssid, AppSettings.password);
+		//wifi_station_set_hostname(&hostnametest[0]);
 		if (!AppSettings.dhcp && !AppSettings.ip.isNull())
 			WifiStation.setIP(AppSettings.ip, AppSettings.netmask, AppSettings.gateway);
 	}
@@ -704,17 +717,17 @@ void init() {
 	// Run WEB server
 	startWebServer();
 	
-	Serial.printf("\r\nCurrently running rom %d.\r\n", slot);
-	Serial.println("Type 'help' and press enter for instructions.");
-	Serial.println();
+	//Serial.printf("\r\nCurrently running rom %d.\r\n", slot);
+	//Serial.println("Type 'help' and press enter for instructions.");
+	//Serial.println();
 	//pinMode(12, OUTPUT);
 	//pinMode(13, OUTPUT);
-	Serial.setCallback(serialCallBack);
+	//Serial.setCallback(serialCallBack);
 	// set timezone hourly difference to UTC
 	SystemClock.setTimeZone(2);
 
 	//printTimer.initializeMs(20000, onPrintSystemTime).start();
-
+	wifi_station_set_hostname(host);
 	// Run our method when station was connected to AP (or not connected)
 	WifiStation.waitConnection(connectOk, 20, connectFail); // We recommend 20+ seconds for connection timeout at start
 	//runRx();

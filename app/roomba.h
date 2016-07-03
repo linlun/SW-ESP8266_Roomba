@@ -12,6 +12,20 @@
 #include <stdlib.h>
 #include <SmingCore.h>
 #include <AppSettings.h>
+
+enum RoombaState
+{
+	Roomba_Init = 0,
+	Roomba_Off = 1,
+	Roomba_On = 2,
+	Roomba_None = 3,
+	Roomba_Clean,
+	Roomba_Max,
+	Roomba_Dock,
+	Roomba_initWake,
+	Roomba_initWakeLow,
+};
+
 /*
 Detailed specification of the protocol can be found here:
 https://cdn-shop.adafruit.com/datasheets/create_2_Open_Interface_Spec.pdf
@@ -134,8 +148,9 @@ typedef union
 class roomba {
   public:
 	roomba(uint8_t wakepin);
+	void requestState(RoombaState newState);
 	void Process(void);
-	void start(int processPeriod);
+	void start(int processPeriod = 100);
 	void setTime(void);
 	void requestSensorData(uint8 sensorGroup = 0);
 	void schedule(ApplicationSettingsStorage AppSettings);
@@ -145,7 +160,9 @@ class roomba {
 	void getSensorDataAsJson(JsonObject& rmb);
 	bool isConnected();
   private:
-	void _connect(void);
+	//void _connect(void);
+	//void _connect2(void);
+	void _requestTimeout(void);
 	void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCharsCount);
 	uint8_t m_wakepin;
 	Roomba_Sensor_Data_t	sensordata;
@@ -156,6 +173,10 @@ class roomba {
 	uint8_t bufferposition;
 	uint8_t expectedResponse;
 	bool connected = false;
+	uint8_t faultcounter = 0u;
+	RoombaState _state = Roomba_Init;
+	RoombaState _requestedstate = Roomba_None;
+	bool _newDataAvailable = false;
 };
 
 #endif /* APP_ROOMBA_H_ */
