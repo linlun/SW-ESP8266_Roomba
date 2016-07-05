@@ -214,13 +214,14 @@ void publishMessage()
 
 	JsonObjectStream* stream = new JsonObjectStream();
 	JsonObject& json = stream->getRoot();
-	//if (roomba.isConnected())
+	if (roomba.getSensorDataAsJson(json))
 	{
-		roomba.getSensorDataAsJson(json);
+		String rootString;
+		json.printTo(rootString);
+		mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/sensors", rootString); // or publishWithQoS
 	}
-	String rootString;
-	json.printTo(rootString);
-	mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/sensors", rootString); // or publishWithQoS
+	mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/status", roomba.getStateString()); // or publishWithQoS
+
 }
 
 // Callback for messages, arrived from MQTT server
@@ -228,59 +229,24 @@ void onMessageReceived(String topic, String message)
 {
 	if (topic.startsWith(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/"))
 	{
-		if (topic.endsWith("wakeup"))
+		if (topic.endsWith("status"))
 		{
-			if (message.equals("1"))
+			if (message.equals("clean"))
 			{
-				if (!roomba.isConnected())
-				{
-					//roomba.connect();
-				}
-			}
-		} else if (topic.endsWith("clean"))
-		{
-			if (message.equals("1"))
+				roomba.requestState(Roomba_Clean);
+			} else if (message.equals("dock"))
 			{
-				if (!roomba.isConnected())
-				{
-					//roomba.connect();
-				} else
-				{
-					//roomba.sendCommand(ROOMBA_CMD_CLEAN);
-				}
-			}
-
-		} else if (topic.endsWith("dock"))
-		{
-			if (message.equals("1"))
+				roomba.requestState(Roomba_Dock);
+			} else if (message.equals("max"))
 			{
-				if (!roomba.isConnected())
-				{
-					//roomba.connect();
-				} else
-				{
-					//roomba.sendCommand(ROOMBA_CMD_SEEK_DOCK);
-				}
-			}
-
-
-		} else if (topic.endsWith("req"))
-		{
-			//roomba.requestSensorData(0);
-			//Serial.println("Let's publish message now!");
-			JsonObjectStream* stream = new JsonObjectStream();
-			JsonObject& json = stream->getRoot();
-			//if (roomba.isConnected())
+				roomba.requestState(Roomba_Max);
+			} else if (message.equals("off"))
 			{
-				roomba.getSensorDataAsJson(json);
+				roomba.requestState(Roomba_Off);
+			} else if (message.equals("on"))
+			{
+				roomba.requestState(Roomba_On);
 			}
-			String rootString;
-			json.printTo(rootString);
-			mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/sensors", rootString); // or publishWithQoS
-		}
-		else if (topic.endsWith("sensors"))
-		{
-			return;
 		}
 	}
 
@@ -318,7 +284,7 @@ void connectOk()
 	startMqttClient();
 
 	// Start publishing loop
-	procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
+	procTimer.initializeMs(5 * 1000, publishMessage).start(); // every 20 seconds
 	//roomba.connect();
 	roomba.start(100);
 }
@@ -509,11 +475,10 @@ void onSensors(HttpRequest &request, HttpResponse &response)
 {
 	JsonObjectStream* stream = new JsonObjectStream();
 	JsonObject& json = stream->getRoot();
-	//if (roomba.isConnected())
+	if (roomba.getSensorDataAsJson(json))
 	{
-		roomba.getSensorDataAsJson(json);
+		response.sendJsonObject(stream);
 	}
-	response.sendJsonObject(stream);
 }
 
 void onFile(HttpRequest &request, HttpResponse &response)

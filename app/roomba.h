@@ -149,6 +149,8 @@ class roomba {
   public:
 	roomba(uint8_t wakepin);
 	void requestState(RoombaState newState);
+	RoombaState getState(void);
+	String getStateString(void);
 	void Process(void);
 	void start(int processPeriod = 100);
 	void setTime(void);
@@ -157,7 +159,7 @@ class roomba {
 	void sendCommand(uint8 cmd);
 	void connect(void);
 	void disconnect(void);
-	void getSensorDataAsJson(JsonObject& rmb);
+	bool getSensorDataAsJson(JsonObject& rmb);
 	bool isConnected();
   private:
 	//void _connect(void);

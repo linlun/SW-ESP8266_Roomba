@@ -55,7 +55,11 @@ void roomba::serialCallBack(Stream& stream, char arrivedChar, unsigned short ava
 			expectedResponse = ROOMBA_CMD_NONE;
 			statetimer.stop();
 			_newDataAvailable = true;
-			faultcounter--;
+			if (faultcounter)
+			{
+				faultcounter--;
+			}
+			//sendCommand(ROOMBA_CMD_START);
 		}
 		break;
 	default:
@@ -67,7 +71,7 @@ void roomba::serialCallBack(Stream& stream, char arrivedChar, unsigned short ava
 	}
 }
 
-void roomba::getSensorDataAsJson(JsonObject& rmb)
+bool roomba::getSensorDataAsJson(JsonObject& rmb)
 {
 	if (connected)
 	{
@@ -95,8 +99,9 @@ void roomba::getSensorDataAsJson(JsonObject& rmb)
 		rmb["charge"] = sensordata.values.charge;
 		rmb["capacity"] = sensordata.values.capacity;
 		//rmb.printTo(data);
-		//return data;
+		return true;
 	}
+	return false;
 }
 
 
@@ -173,6 +178,7 @@ void roomba::setTime()
 void roomba::_requestTimeout()
 {
 	expectedResponse = ROOMBA_CMD_NONE;
+	//sendCommand(faultcounter);
 	faultcounter+=10;
 }
 
@@ -189,6 +195,10 @@ void roomba::requestSensorData(uint8 sensorGroup)
 		{
 			expectedResponse = ROOMBA_CMD_SENSORS;
 		}
+		while(Serial.available())
+		{
+			(void)Serial.read();
+		}
 		statetimer.initializeMs(500 , TimerDelegate(&roomba::_requestTimeout,this)).startOnce();
 		while (i < 2)
 		{
@@ -201,34 +211,13 @@ bool roomba::isConnected()
 {
 	return connected;
 }
-/*
-void roomba::_connect2()
-{
-	sendCommand(ROOMBA_CMD_START);
-	connected = true;
-}
-void roomba::_connect()
-{
-	Serial.setCallback(StreamDataReceivedDelegate(&roomba::serialCallBack,this));
-	//sendCommand(ROOMBA_CMD_START);
-	digitalWrite(m_wakepin, LOW);
-	statetimer.initializeMs(100 , TimerDelegate(&roomba::_connect2,this)).startOnce();
-	//this->requestSensorData(0);
-	//connected = true;
-}
 
-void roomba::connect()
-{
-	connected = false;
-	statetimer.initializeMs(300 , TimerDelegate(&roomba::_connect,this)).startOnce();
-	digitalWrite(m_wakepin, HIGH);
-}
-*/
 void roomba::disconnect()
 {
 	connected = false;
 	digitalWrite(m_wakepin, LOW);
-	sendCommand(ROOMBA_CMD_STOP);
+	//sendCommand(ROOMBA_CMD_STOP);
+	sendCommand(ROOMBA_CMD_POWER);
 }
 
 roomba::roomba(uint8_t wakepin)
@@ -245,6 +234,7 @@ roomba::roomba(uint8_t wakepin)
 void roomba::start(int processPeriod)
 {
 	_state = Roomba_Init;
+	Serial.setCallback(StreamDataReceivedDelegate(&roomba::serialCallBack,this));
 	_timer.initializeMs(processPeriod , TimerDelegate(&roomba::Process,this)).start();
 }
 
@@ -263,14 +253,46 @@ void roomba::requestState(RoombaState newState)
 			break;
 	}
 }
+RoombaState roomba::getState(void)
+{
+	return _state;
+}
+
+String roomba::getStateString(void)
+{
+	switch (_state)
+	{
+		case Roomba_Init:
+			return "init";
+		case Roomba_Off:
+			return "off";
+		case Roomba_On:
+			return "on";
+		case Roomba_Dock:
+			return "dock";
+		case Roomba_Clean:
+			return "clean";
+		case Roomba_Max:
+			return "max";
+		case Roomba_initWake:
+			return "initWake";
+		case Roomba_initWakeLow:
+			return "initWakeLow";
+		default:
+			return "Off";
+	}
+}
 
 void roomba::Process(void)
 {
 	static uint8 internalState = 0;
 	if (faultcounter >= 150)
 	{
-		sendCommand(ROOMBA_CMD_STOP);
+		//sendCommand(ROOMBA_CMD_STOP);
+		connected = false;
 		sendCommand(ROOMBA_CMD_POWER);
+		//sendCommand(ROOMBA_CMD_START);
+		//sendCommand(ROOMBA_CMD_START);
 		internalState = 0;
 		_state = Roomba_Off;
 	}
@@ -283,10 +305,16 @@ void roomba::Process(void)
 			case 0:
 				sendCommand(ROOMBA_CMD_START);
 				internalState++;
+				break;
 			case 1:
+				while(Serial.available())
+				{
+					(void)Serial.read();
+				}
 				requestSensorData(0u);
 				_newDataAvailable=false;
 				internalState++;
+				break;
 			case 2:
 			case 3:
 			case 4:
@@ -300,10 +328,16 @@ void roomba::Process(void)
 				}
 				break;
 			case 5:
-				sendCommand(ROOMBA_CMD_STOP);
+				//sendCommand(ROOMBA_CMD_STOP);
+				connected = false;
 				sendCommand(ROOMBA_CMD_POWER);
+				//sendCommand(ROOMBA_CMD_START);
+				//sendCommand(ROOMBA_CMD_START);
+				//sendCommand(ROOMBA_CMD_START);
 				internalState = 0;
 				_state = Roomba_Off;
+				_requestedstate = Roomba_None;
+				break;
 			default:
 
 				break;
@@ -318,8 +352,10 @@ void roomba::Process(void)
 				_requestedstate = Roomba_None;
 				break;
 			case Roomba_Off:
-				sendCommand(ROOMBA_CMD_STOP);
+				//sendCommand(ROOMBA_CMD_STOP);
+				connected = false;
 				sendCommand(ROOMBA_CMD_POWER);
+				//sendCommand(ROOMBA_CMD_START);
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Off;
@@ -370,7 +406,8 @@ void roomba::Process(void)
 			switch (_requestedstate)
 			{
 			case Roomba_Off:
-				sendCommand(ROOMBA_CMD_STOP);
+				//sendCommand(ROOMBA_CMD_STOP);
+				connected = false;
 				sendCommand(ROOMBA_CMD_POWER);
 				internalState = 0;
 				_requestedstate = Roomba_None;
@@ -411,7 +448,8 @@ void roomba::Process(void)
 			switch (_requestedstate)
 			{
 			case Roomba_Off:
-				sendCommand(ROOMBA_CMD_STOP);
+				//sendCommand(ROOMBA_CMD_STOP);
+				connected = false;
 				sendCommand(ROOMBA_CMD_POWER);
 				internalState = 0;
 				_requestedstate = Roomba_None;
