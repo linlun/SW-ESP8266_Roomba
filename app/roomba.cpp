@@ -52,6 +52,9 @@ void roomba::serialCallBack(Stream& stream, char arrivedChar, unsigned short ava
 			tmp = sensordata.bytes[i];
 			sensordata.bytes[i] = sensordata.bytes[i+1];
 			sensordata.bytes[i+1] = tmp;
+
+			distance += sensordata.values.distance;
+			angle += sensordata.values.angle;
 			expectedResponse = ROOMBA_CMD_NONE;
 			statetimer.stop();
 			_newDataAvailable = true;
@@ -90,8 +93,8 @@ bool roomba::getSensorDataAsJson(JsonObject& rmb)
 		rmb["dirt_right"] = sensordata.values.dirt_right;
 		rmb["remote"] = sensordata.values.remote;
 		rmb["buttons"] = sensordata.values.buttons.b;
-		rmb["distance"] = sensordata.values.distance;
-		rmb["angle"] = sensordata.values.angle;
+		rmb["distance"] = distance;
+		rmb["angle"] = angle;
 		rmb["charge_state"] = sensordata.values.charge_state;
 		rmb["voltage"] = sensordata.values.voltage;
 		rmb["current"] = sensordata.values.current;
@@ -180,6 +183,7 @@ void roomba::_requestTimeout()
 	expectedResponse = ROOMBA_CMD_NONE;
 	//sendCommand(faultcounter);
 	faultcounter+=10;
+	//mqtt->publish("roomba/debug", "request timeout");
 }
 
 void roomba::requestSensorData(uint8 sensorGroup)
@@ -220,8 +224,9 @@ void roomba::disconnect()
 	sendCommand(ROOMBA_CMD_POWER);
 }
 
-roomba::roomba(uint8_t wakepin)
+roomba::roomba(uint8_t wakepin, MqttClient* mqtt)
 {
+	this->mqtt = mqtt;
 	connected = false;
 	m_wakepin = wakepin;
 	digitalWrite(m_wakepin, LOW);
@@ -235,6 +240,7 @@ void roomba::start(int processPeriod)
 {
 	_state = Roomba_Init;
 	Serial.setCallback(StreamDataReceivedDelegate(&roomba::serialCallBack,this));
+	Serial.begin(19200);
 	_timer.initializeMs(processPeriod , TimerDelegate(&roomba::Process,this)).start();
 }
 
@@ -286,6 +292,14 @@ String roomba::getStateString(void)
 void roomba::Process(void)
 {
 	static uint8 internalState = 0;
+	if (_requestedstate == Roomba_Reset)
+	{
+		sendCommand(ROOMBA_CMD_RESET);
+		_requestedstate = Roomba_None;
+		internalState = 0;
+		_state = Roomba_On;
+	}
+
 	if (faultcounter >= 150)
 	{
 		//sendCommand(ROOMBA_CMD_STOP);
@@ -295,6 +309,7 @@ void roomba::Process(void)
 		//sendCommand(ROOMBA_CMD_START);
 		internalState = 0;
 		_state = Roomba_Off;
+		//mqtt->publish("roomba/debug", "fault");
 	}
 	switch (_state)
 	{
@@ -323,6 +338,7 @@ void roomba::Process(void)
 				{
 					internalState = 0;
 					_state = Roomba_On;
+					//mqtt->publish("roomba/debug", "On from init");
 					faultcounter = 0;
 					connected = true;
 				}
@@ -337,6 +353,7 @@ void roomba::Process(void)
 				internalState = 0;
 				_state = Roomba_Off;
 				_requestedstate = Roomba_None;
+				//mqtt->publish("roomba/debug", "off from init");
 				break;
 			default:
 
@@ -359,24 +376,28 @@ void roomba::Process(void)
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Off;
+				//mqtt->publish("roomba/debug", "off from on");
 				break;
 			case Roomba_Clean:
 				sendCommand(ROOMBA_CMD_CLEAN);
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Clean;
+				//mqtt->publish("roomba/debug", "clean from on");
 				break;
 			case Roomba_Max:
 				sendCommand(ROOMBA_CMD_MAX);
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Clean;
+				//mqtt->publish("roomba/debug", "max from on");
 				break;
 			case Roomba_Dock:
 				sendCommand(ROOMBA_CMD_SEEK_DOCK);
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Dock;
+				//mqtt->publish("roomba/debug", "dock from on");
 				break;
 			default:
 				break;
@@ -395,6 +416,7 @@ void roomba::Process(void)
 			case Roomba_Max:
 			case Roomba_Dock:
 				_state = Roomba_initWake;
+				//mqtt->publish("roomba/debug", "wake from off");
 				break;
 			default:
 				break;
@@ -412,12 +434,14 @@ void roomba::Process(void)
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Off;
+				//mqtt->publish("roomba/debug", "off from clean");
 				break;
 			case Roomba_On:
 				sendCommand(ROOMBA_CMD_CLEAN);
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_On;
+				//mqtt->publish("roomba/debug", "on from clean");
 				break;
 			case Roomba_Max:
 				sendCommand(ROOMBA_CMD_MAX);
@@ -426,6 +450,7 @@ void roomba::Process(void)
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Clean;
+				//mqtt->publish("roomba/debug", "max from clean");
 				break;
 			case Roomba_Dock:
 				sendCommand(ROOMBA_CMD_SEEK_DOCK);
@@ -434,6 +459,7 @@ void roomba::Process(void)
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Dock;
+				//mqtt->publish("roomba/debug", "dock from clean");
 				break;
 			case Roomba_Clean:
 				_requestedstate = Roomba_None;
@@ -454,12 +480,14 @@ void roomba::Process(void)
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Off;
+				//mqtt->publish("roomba/debug", "off from dock");
 				break;
 			case Roomba_On:
 				sendCommand(ROOMBA_CMD_SEEK_DOCK);
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_On;
+				//mqtt->publish("roomba/debug", "on from dock");
 				break;
 			case Roomba_Max:
 				sendCommand(ROOMBA_CMD_MAX);
@@ -468,6 +496,7 @@ void roomba::Process(void)
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Clean;
+				//mqtt->publish("roomba/debug", "max from dock");
 				break;
 			case Roomba_Clean:
 				sendCommand(ROOMBA_CMD_CLEAN);
@@ -476,6 +505,7 @@ void roomba::Process(void)
 				internalState = 0;
 				_requestedstate = Roomba_None;
 				_state = Roomba_Clean;
+				//mqtt->publish("roomba/debug", "clean from dock");
 				break;
 			case Roomba_Dock:
 				_requestedstate = Roomba_None;
@@ -489,6 +519,7 @@ void roomba::Process(void)
 		{
 			digitalWrite(m_wakepin, HIGH);
 			_state = Roomba_initWakeLow;
+			//mqtt->publish("roomba/debug", "wake low from init wake");
 			break;
 		}
 		case Roomba_initWakeLow:
@@ -496,6 +527,7 @@ void roomba::Process(void)
 			digitalWrite(m_wakepin, LOW);
 			internalState = 0;
 			_state = Roomba_Init;
+			//mqtt->publish("roomba/debug", "init from low");
 			break;
 		}
 		default:
@@ -509,7 +541,8 @@ void roomba::Process(void)
 	{
 		this->requestSensorData(0u);
 	} else {
-
+		distance = 0;
+		angle = 0;
 	}
 }
 

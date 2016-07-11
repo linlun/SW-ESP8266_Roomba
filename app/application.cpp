@@ -12,7 +12,7 @@
 #endif
 
 HttpServer server;
-roomba roomba(PIN_ROOBA_WAKE);
+
 BssList networks;
 String network, password;
 String mqtt_client;
@@ -20,6 +20,8 @@ rBootHttpUpdate* otaUpdater = 0;
 
 ntpClientDemo *ntpDemo;
 Timer printTimer;
+
+uint8 disconnectionsFromMqtt = 0;
 
 // Forward declarations
 void startMqttClient();
@@ -38,23 +40,23 @@ void onPrintSystemTime() {
 // MQTT client
 // For quick check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
 MqttClient *mqtt;
-
+roomba roomba(PIN_ROOBA_WAKE, mqtt);
 
 void OtaUpdate_CallBack(bool result) {
 	
-	Serial.println("In callback...");
+	//Serial.println("In callback...");
 	if(result == true) {
 		// success
 		uint8 slot;
 		slot = rboot_get_current_rom();
 		if (slot == 0) slot = 1; else slot = 0;
 		// set to boot new rom and then reboot
-		Serial.printf("Firmware updated, rebooting to rom %d...\r\n", slot);
+		//Serial.printf("Firmware updated, rebooting to rom %d...\r\n", slot);
 		rboot_set_current_rom(slot);
 		System.restart();
 	} else {
 		// fail
-		Serial.println("Firmware update failed!");
+		//Serial.println("Firmware update failed!");
 	}
 }
 
@@ -63,7 +65,7 @@ void OtaUpdate() {
 	uint8 slot;
 	rboot_config bootconf;
 	
-	Serial.println("Updating...");
+	//Serial.println("Updating...");
 	
 	// need a clean object, otherwise if run before and failed will not run again
 	if (otaUpdater) delete otaUpdater;
@@ -108,18 +110,18 @@ void Switch() {
 	uint8 before, after;
 	before = rboot_get_current_rom();
 	if (before == 0) after = 1; else after = 0;
-	Serial.printf("Swapping from rom %d to rom %d.\r\n", before, after);
+	//Serial.printf("Swapping from rom %d to rom %d.\r\n", before, after);
 	rboot_set_current_rom(after);
-	Serial.println("Restarting...\r\n");
+	//Serial.println("Restarting...\r\n");
 	System.restart();
 }
 
 void ShowInfo() {
-    Serial.printf("\r\nSDK: v%s\r\n", system_get_sdk_version());
-    Serial.printf("Free Heap: %d\r\n", system_get_free_heap_size());
-    Serial.printf("CPU Frequency: %d MHz\r\n", system_get_cpu_freq());
-    Serial.printf("System Chip ID: %x\r\n", system_get_chip_id());
-    Serial.printf("SPI Flash ID: %x\r\n", spi_flash_get_id());
+    //Serial.printf("\r\nSDK: v%s\r\n", system_get_sdk_version());
+    //Serial.printf("Free Heap: %d\r\n", system_get_free_heap_size());
+    //Serial.printf("CPU Frequency: %d MHz\r\n", system_get_cpu_freq());
+    //Serial.printf("System Chip ID: %x\r\n", system_get_chip_id());
+    //Serial.printf("SPI Flash ID: %x\r\n", spi_flash_get_id());
     //Serial.printf("SPI Flash Size: %d\r\n", (1 << ((spi_flash_get_id() >> 16) & 0xff)));
 }
 
@@ -138,7 +140,7 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 			WifiStation.config(WIFI_SSID, WIFI_PWD);
 			WifiStation.enable(true);
 		} else if (!strcmp(str, "ip")) {
-			Serial.printf("ip: %s mac: %s\r\n", WifiStation.getIP().toString().c_str(), WifiStation.getMAC().c_str());
+			//Serial.printf("ip: %s mac: %s\r\n", WifiStation.getIP().toString().c_str(), WifiStation.getMAC().c_str());
 		} else if (!strcmp(str, "ota")) {
 			OtaUpdate();
 		} else if (!strcmp(str, "switch")) {
@@ -147,19 +149,19 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 			System.restart();
 		} else if (!strcmp(str, "ls")) {
 			Vector<String> files = fileList();
-			Serial.printf("filecount %d\r\n", files.count());
+			//Serial.printf("filecount %d\r\n", files.count());
 			for (unsigned int i = 0; i < files.count(); i++) {
-				Serial.println(files[i]);
+			//	Serial.println(files[i]);
 			}
 		} else if (!strcmp(str, "cat")) {
 			Vector<String> files = fileList();
 			if (files.count() > 0) {
-				Serial.printf("dumping file %s:\r\n", files[0].c_str());
+			//	Serial.printf("dumping file %s:\r\n", files[0].c_str());
 				//Serial.println(fileGetContent(files[0]));
-				Serial.println(fileGetContent(".settings.conf"));
+			//	Serial.println(fileGetContent(".settings.conf"));
 
 			} else {
-				Serial.println("Empty spiffs!");
+				//Serial.println("Empty spiffs!");
 			}
 		} else if (!strcmp(str, "info")) {
 			ShowInfo();
@@ -197,13 +199,14 @@ void serialCallBack(Stream& stream, char arrivedChar, unsigned short availableCh
 void checkMQTTDisconnect(TcpClient& client, bool flag){
 
 	// Called whenever MQTT connection is failed.
-	if (flag == true)
-		Serial.println("MQTT Broker Disconnected!!");
-	else
-		Serial.println("MQTT Broker Unreachable!!");
+	//if (flag == true)
+		//Serial.println("MQTT Broker Disconnected!!");
+	//else
+	//	Serial.println("MQTT Broker Unreachable!!");
 
 	// Restart connection attempt after few seconds
 	procTimer.initializeMs(2 * 1000, startMqttClient).start(); // every 2 seconds
+	disconnectionsFromMqtt++;
 }
 
 // Publish our message
@@ -246,6 +249,9 @@ void onMessageReceived(String topic, String message)
 			} else if (message.equals("on"))
 			{
 				roomba.requestState(Roomba_On);
+			} else if (message.equals("reset"))
+			{
+				roomba.requestState(Roomba_Reset);
 			}
 		}
 	}
@@ -265,7 +271,7 @@ void startMqttClient()
 	}
 	*/
 	procTimer.stop();
-	if(!mqtt->setWill("last/will","The connection from this device is lost:(", 1, true)) {
+	if(!mqtt->setWill("last/will","The connection from esp8266_" + WifiStation.getMAC() + " is lost:(", 1, true)) {
 		debugf("Unable to set the last will and testament. Most probably there is not enough memory on the device.");
 	}
 	mqtt_client = "esp8266_" + WifiStation.getMAC();
@@ -273,6 +279,10 @@ void startMqttClient()
 	// Assign a disconnect callback function
 	mqtt->setCompleteDelegate(checkMQTTDisconnect);
 	mqtt->subscribe(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/#");
+
+	mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/mqtt", "restarts: "+String(disconnectionsFromMqtt)); // or publishWithQoS
+
+
 }
 
 // Will be called when WiFi station was connected to AP
@@ -292,7 +302,7 @@ void connectOk()
 // Will be called when WiFi station timeout was reached
 void connectFail()
 {
-	Serial.println("I'm NOT CONNECTED. Need help :(");
+	//Serial.println("I'm NOT CONNECTED. Need help :(");
 
 	// .. some you code for device configuration ..
 }
@@ -385,7 +395,7 @@ void onRoombaScheduling(HttpRequest &request, HttpResponse &response)
 		AppSettings.rmb_sch_sunday = request.getPostParameter("sunday") == "1";
 		AppSettings.rmb_sch_sundayHour = request.getPostParameter("sundayHour").toInt();
 		AppSettings.rmb_sch_sundayMinute = request.getPostParameter("sundayMinute").toInt();
-		Serial.printf("Updating MQTT settings: %d", AppSettings.ip.isNull());
+		//Serial.printf("Updating MQTT settings: %d", AppSettings.ip.isNull());
 		roomba.schedule(AppSettings);
 		AppSettings.save();
 

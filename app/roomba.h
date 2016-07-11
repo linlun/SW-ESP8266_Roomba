@@ -24,6 +24,7 @@ enum RoombaState
 	Roomba_Dock,
 	Roomba_initWake,
 	Roomba_initWakeLow,
+	Roomba_Reset,
 };
 
 /*
@@ -147,7 +148,7 @@ typedef union
 
 class roomba {
   public:
-	roomba(uint8_t wakepin);
+	roomba(uint8_t wakepin, MqttClient* mqtt);
 	void requestState(RoombaState newState);
 	RoombaState getState(void);
 	String getStateString(void);
@@ -179,6 +180,9 @@ class roomba {
 	RoombaState _state = Roomba_Init;
 	RoombaState _requestedstate = Roomba_None;
 	bool _newDataAvailable = false;
+	sint32 distance;
+	sint32 angle;
+	MqttClient* mqtt;
 };
 
 #endif /* APP_ROOMBA_H_ */
