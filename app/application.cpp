@@ -214,7 +214,7 @@ void publishMessage()
 {
 	if (mqtt->getConnectionState() != eTCS_Connected)
 		startMqttClient(); // Auto reconnect
-
+/*
 	JsonObjectStream* stream = new JsonObjectStream();
 	JsonObject& json = stream->getRoot();
 	if (roomba.getSensorDataAsJson(json))
@@ -223,6 +223,7 @@ void publishMessage()
 		json.printTo(rootString);
 		mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/sensors", rootString); // or publishWithQoS
 	}
+	*/
 	mqtt->publish(mqtt_client + "/" +AppSettings.mqtt_roombaName + "/status", roomba.getStateString()); // or publishWithQoS
 
 }
@@ -289,7 +290,7 @@ void startMqttClient()
 void connectOk()
 {
 	//Serial.println("I'm CONNECTED");
-	ntpDemo = new ntpClientDemo();
+//	ntpDemo = new ntpClientDemo();
 	// Run MQTT client
 	startMqttClient();
 

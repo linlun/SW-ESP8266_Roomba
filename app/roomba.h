@@ -175,6 +175,7 @@ class roomba {
 	uint8_t buffer[64];
 	uint8_t bufferposition;
 	uint8_t expectedResponse;
+	uint8_t commandTimeout;
 	bool connected = false;
 	uint8_t faultcounter = 0u;
 	RoombaState _state = Roomba_Init;

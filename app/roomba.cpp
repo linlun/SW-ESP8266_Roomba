@@ -53,10 +53,11 @@ void roomba::serialCallBack(Stream& stream, char arrivedChar, unsigned short ava
 			sensordata.bytes[i] = sensordata.bytes[i+1];
 			sensordata.bytes[i+1] = tmp;
 
-			distance += sensordata.values.distance;
+			distance -= sensordata.values.distance;
 			angle += sensordata.values.angle;
 			expectedResponse = ROOMBA_CMD_NONE;
-			statetimer.stop();
+			//statetimer.stop();
+			commandTimeout = 0;
 			_newDataAvailable = true;
 			if (faultcounter)
 			{
@@ -203,7 +204,8 @@ void roomba::requestSensorData(uint8 sensorGroup)
 		{
 			(void)Serial.read();
 		}
-		statetimer.initializeMs(500 , TimerDelegate(&roomba::_requestTimeout,this)).startOnce();
+		commandTimeout = 5;
+		//statetimer.initializeMs(500 , TimerDelegate(&roomba::_requestTimeout,this)).startOnce();
 		while (i < 2)
 		{
 			Serial.print(buffer[i]);
@@ -292,6 +294,16 @@ String roomba::getStateString(void)
 void roomba::Process(void)
 {
 	static uint8 internalState = 0;
+	if (commandTimeout)
+	{
+		commandTimeout--;
+		if (commandTimeout == 0)
+		{
+			_requestTimeout();
+		}
+	}
+
+
 	if (_requestedstate == Roomba_Reset)
 	{
 		sendCommand(ROOMBA_CMD_RESET);
@@ -308,7 +320,6 @@ void roomba::Process(void)
 		//sendCommand(ROOMBA_CMD_START);
 		//sendCommand(ROOMBA_CMD_START);
 		internalState = 0;
-		_state = Roomba_Off;
 		//mqtt->publish("roomba/debug", "fault");
 	}
 	switch (_state)
